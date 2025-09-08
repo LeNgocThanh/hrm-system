@@ -1,0 +1,10 @@
+export enum NotificationType {
+  MEETING_APPROVED = 'MEETING_APPROVED',
+  MEETING_REMINDER = 'MEETING_REMINDER',
+  MEETING_RSVP_REQUEST = 'MEETING_RSVP_REQUEST',
+}
+
+export enum NotificationStatus {
+  UNREAD = 'UNREAD',
+  READ = 'READ',
+}

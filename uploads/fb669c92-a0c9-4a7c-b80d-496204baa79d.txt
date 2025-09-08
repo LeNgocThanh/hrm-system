@@ -1,0 +1,696 @@
+// =============================================
+// src/assets/schemas/asset.schema.ts
+// =============================================
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { HydratedDocument, Types } from 'mongoose';
+
+export enum AssetStatus {
+  IN_STOCK = 'IN_STOCK',
+  ASSIGNED = 'ASSIGNED',
+  IN_REPAIR = 'IN_REPAIR',
+  LOST = 'LOST',
+  DISPOSED = 'DISPOSED',
+}
+
+export enum AssetType {
+  TOOL = 'TOOL',
+  EQUIPMENT = 'EQUIPMENT',
+  FURNITURE = 'FURNITURE',
+  ELECTRONIC = 'ELECTRONIC',
+  OTHER = 'OTHER',
+}
+
+@Schema({ _id: false })
+export class Money {
+  @Prop({ required: true, default: 0 })
+  amount: number;
+
+  @Prop({ required: true, default: 'VND' })
+  currency: string;
+}
+export const MoneySchema = SchemaFactory.createForClass(Money);
+
+@Schema({ timestamps: true, collection: 'assets' })
+export class Asset {
+  _id: Types.ObjectId;
+
+  @Prop({ required: true, unique: true, trim: true })
+  code: string; // Mã tài sản nội bộ (TS-0001)
+
+  @Prop({ required: true, trim: true })
+  name: string; // Tên tài sản
+
+  @Prop({ enum: AssetType, default: AssetType.OTHER })
+  type: AssetType;
+
+  @Prop({ trim: true })
+  model?: string; // Model/mã hàng
+
+  @Prop({ trim: true })
+  serialNumber?: string; // S/N
+
+  @Prop({ type: MoneySchema, _id: false })
+  purchasePrice?: Money;
+
+  @Prop()
+  purchaseDate?: Date;
+
+  @Prop({ trim: true })
+  vendor?: string; // Nhà cung cấp
+
+  @Prop({ trim: true })
+  location?: string; // Vị trí/kho
+
+  @Prop({ enum: AssetStatus, default: AssetStatus.IN_STOCK })
+  status: AssetStatus;
+
+  @Prop({ type: Types.ObjectId, ref: 'User', index: true, default: null })
+  currentHolderId?: Types.ObjectId | null; // người đang được giao
+
+  @Prop({ type: String, trim: true })
+  note?: string;
+
+  // metadata bổ sung (tags, cấu hình…)
+  @Prop({ type: Map, of: String })
+  metadata?: Map<string, string>;
+}
+
+export type AssetDocument = HydratedDocument<Asset>;
+export const AssetSchema = SchemaFactory.createForClass(Asset);
+
+AssetSchema.index({ name: 'text', code: 'text', model: 'text', serialNumber: 'text' });
+AssetSchema.index({ status: 1, type: 1 });
+
+// Ảo hoá populate nhanh lịch sử gần nhất
+AssetSchema.virtual('lastEvent', {
+  ref: 'AssetEvent',
+  localField: '_id',
+  foreignField: 'assetId',
+  options: { sort: { eventDate: -1 }, justOne: true },
+});
+
+// =============================================
+// src/assets/schemas/asset-event.schema.ts
+// =============================================
+import { Schema as MSchema, Prop as MProp, SchemaFactory as MSF, Schema } from '@nestjs/mongoose';
+import { HydratedDocument as HDoc, Types as MTypes } from 'mongoose';
+
+export enum AssetEventType {
+  PURCHASE = 'PURCHASE', // mua mới
+  ASSIGN = 'ASSIGN', // bàn giao cho NV
+  TRANSFER = 'TRANSFER', // luân chuyển người dùng/đơn vị
+  REPAIR = 'REPAIR', // sửa chữa/bảo hành
+  RETURN = 'RETURN', // trả về kho
+  LOSS = 'LOSS', // mất
+  DISPOSE = 'DISPOSE', // thanh lý/hủy
+}
+
+@Schema({ _id: false })
+export class AttachmentRef {
+  @MProp({ trim: true }) name?: string;
+  @MProp({ trim: true }) url?: string; // lưu link file (S3, GCS, local…)
+  @MProp({ trim: true }) mimeType?: string;
+}
+export const AttachmentRefSchema = MSF.createForClass(AttachmentRef);
+
+@Schema({ timestamps: true, collection: 'asset_events' })
+export class AssetEvent {
+  _id: MTypes.ObjectId;
+
+  @MProp({ type: MTypes.ObjectId, ref: 'Asset', required: true, index: true })
+  assetId: MTypes.ObjectId;
+
+  @MProp({ enum: AssetEventType, required: true, index: true })
+  type: AssetEventType;
+
+  @MProp({ default: () => new Date(), index: true })
+  eventDate: Date; // ngày diễn ra sự kiện
+
+  @MProp({ type: MTypes.ObjectId, ref: 'User', index: true })
+  actorId?: MTypes.ObjectId; // người thực hiện (kho, IT, HR…)
+
+  // Thông tin liên quan đến người dùng được gán (nếu có)
+  @MProp({ type: MTypes.ObjectId, ref: 'User', index: true })
+  toUserId?: MTypes.ObjectId; // người nhận (ASSIGN/TRANSFER)
+
+  @MProp({ type: MTypes.ObjectId, ref: 'User', index: true })
+  fromUserId?: MTypes.ObjectId; // người bàn giao (TRANSFER/RETURN)
+
+  @MProp()
+  quantity?: number; // mặc định 1; để mở rộng với vật tư
+
+  @MProp({ type: AttachmentRefSchema, _id: false })
+  document?: AttachmentRef; // biên bản tiếp nhận/bàn giao…
+
+  @MProp({ type: Number })
+  cost?: number; // chi phí sửa chữa / thanh lý thu được (nếu cần)
+
+  @MProp({ trim: true })
+  note?: string;
+}
+
+export type AssetEventDocument = HDoc<AssetEvent>;
+export const AssetEventSchema = MSF.createForClass(AssetEvent);
+AssetEventSchema.index({ assetId: 1, eventDate: -1 });
+
+// =============================================
+// src/assets/schemas/asset-document.schema.ts
+// (Tùy chọn) Trường hợp bạn đã có user-document, có thể tái dụng bằng cách thêm refType.
+// Ở đây minh hoạ một schema riêng cho tài sản, nếu muốn dùng chung hãy đổi modelName/fields tương ứng.
+// =============================================
+import { Schema as NSchema, Prop as NProp, SchemaFactory as NSF } from '@nestjs/mongoose';
+import { Types as NTypes, HydratedDocument as NHydrated } from 'mongoose';
+
+export enum AssetDocType {
+  ACCEPTANCE = 'ACCEPTANCE', // tiếp nhận
+  HANDOVER = 'HANDOVER', // bàn giao
+  TRANSFER = 'TRANSFER',
+  REPAIR = 'REPAIR',
+  LIQUIDATION = 'LIQUIDATION',
+  OTHER = 'OTHER',
+}
+
+@NSchema({ timestamps: true, collection: 'asset_documents' })
+export class AssetDocument {
+  _id: NTypes.ObjectId;
+
+  @NProp({ type: NTypes.ObjectId, ref: 'Asset', required: true, index: true })
+  assetId: NTypes.ObjectId;
+
+  @NProp({ type: NTypes.ObjectId, ref: 'User', index: true })
+  ownerUserId?: NTypes.ObjectId; // văn bản gắn với người dùng
+
+  @NProp({ enum: AssetDocType, default: AssetDocType.OTHER, index: true })
+  type: AssetDocType;
+
+  @NProp({ trim: true })
+  title?: string;
+
+  @NProp({ trim: true })
+  fileUrl?: string;
+
+  @NProp({ trim: true })
+  note?: string;
+}
+
+export type AssetDocumentDocument = NHydrated<AssetDocument>;
+export const AssetDocumentSchema = NSF.createForClass(AssetDocument);
+
+// =============================================
+// src/assets/dto/create-asset.dto.ts
+// =============================================
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, IsDateString, IsNumber, IsObject, IsMap } from 'class-validator';
+import { AssetStatus, AssetType } from '../schemas/asset.schema';
+
+export class CreateAssetDto {
+  @ApiProperty({ example: 'TS-0001' })
+  @IsString()
+  @IsNotEmpty()
+  code: string;
+
+  @ApiProperty({ example: 'Laptop Dell Latitude 5440' })
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @ApiProperty({ enum: AssetType, default: AssetType.ELECTRONIC })
+  @IsEnum(AssetType)
+  type: AssetType;
+
+  @ApiPropertyOptional({ example: '5440' })
+  @IsOptional()
+  @IsString()
+  model?: string;
+
+  @ApiPropertyOptional({ example: 'SN123456789' })
+  @IsOptional()
+  @IsString()
+  serialNumber?: string;
+
+  @ApiPropertyOptional({ example: 25000000 })
+  @IsOptional()
+  @IsNumber()
+  purchasePrice?: number;
+
+  @ApiPropertyOptional({ example: 'VND' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+
+  @ApiPropertyOptional({ example: '2025-08-01' })
+  @IsOptional()
+  @IsDateString()
+  purchaseDate?: string;
+
+  @ApiPropertyOptional({ example: 'FPT Trading' })
+  @IsOptional()
+  @IsString()
+  vendor?: string;
+
+  @ApiPropertyOptional({ example: 'Kho IT - Tầng 5' })
+  @IsOptional()
+  @IsString()
+  location?: string;
+
+  @ApiPropertyOptional({ enum: AssetStatus })
+  @IsOptional()
+  @IsEnum(AssetStatus)
+  status?: AssetStatus;
+
+  @ApiPropertyOptional({ example: 'Máy mới, còn BH 36 tháng' })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiPropertyOptional({ type: Object })
+  @IsOptional()
+  @IsMap()
+  metadata?: Map<string, string>;
+}
+
+// =============================================
+// src/assets/dto/update-asset.dto.ts
+// =============================================
+import { PartialType } from '@nestjs/swagger';
+import { CreateAssetDto } from './create-asset.dto';
+
+export class UpdateAssetDto extends PartialType(CreateAssetDto) {}
+
+// =============================================
+// src/assets/dto/assign-asset.dto.ts
+// =============================================
+import { ApiProperty } from '@nestjs/swagger';
+import { IsMongoId, IsOptional, IsString, IsDateString } from 'class-validator';
+
+export class AssignAssetDto {
+  @ApiProperty({ description: 'Người nhận tài sản', example: '667a7d8c2c3d0f209a2c3b11' })
+  @IsMongoId()
+  toUserId: string;
+
+  @ApiProperty({ description: 'Ngày bàn giao', example: '2025-08-18' })
+  @IsDateString()
+  handoverDate: string;
+
+  @ApiProperty({ description: 'Ghi chú', required: false })
+  @IsOptional()
+  @IsString()
+  note?: string;
+
+  @ApiProperty({ description: 'Link biên bản bàn giao (nếu có)', required: false })
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+}
+
+// =============================================
+// src/assets/dto/create-event.dto.ts
+// =============================================
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsMongoId, IsOptional, IsString, IsDateString, IsNumber } from 'class-validator';
+import { AssetEventType } from '../schemas/asset-event.schema';
+
+export class CreateAssetEventDto {
+  @ApiProperty({ enum: AssetEventType })
+  @IsEnum(AssetEventType)
+  type: AssetEventType;
+
+  @ApiProperty({ example: '2025-08-18' })
+  @IsDateString()
+  eventDate: string;
+
+  @ApiPropertyOptional({ description: 'Người thực hiện' })
+  @IsOptional()
+  @IsMongoId()
+  actorId?: string;
+
+  @ApiPropertyOptional({ description: 'Từ người dùng (transfer/return)' })
+  @IsOptional()
+  @IsMongoId()
+  fromUserId?: string;
+
+  @ApiPropertyOptional({ description: 'Đến người dùng (assign/transfer)' })
+  @IsOptional()
+  @IsMongoId()
+  toUserId?: string;
+
+  @ApiPropertyOptional({ description: 'Chi phí sửa chữa/tiền thu thanh lý', example: 500000 })
+  @IsOptional()
+  @IsNumber()
+  cost?: number;
+
+  @ApiPropertyOptional({ description: 'Biên bản đính kèm' })
+  @IsOptional()
+  @IsString()
+  documentUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  note?: string;
+}
+
+// =============================================
+// src/assets/assets.service.ts
+// =============================================
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { Asset, AssetDocument, AssetSchema, AssetStatus } from './schemas/asset.schema';
+import { AssetEvent, AssetEventDocument, AssetEventSchema, AssetEventType } from './schemas/asset-event.schema';
+import { CreateAssetDto } from './dto/create-asset.dto';
+import { UpdateAssetDto } from './dto/update-asset.dto';
+import { AssignAssetDto } from './dto/assign-asset.dto';
+import { CreateAssetEventDto } from './dto/create-event.dto';
+
+@Injectable()
+export class AssetsService {
+  constructor(
+    @InjectModel(Asset.name) private readonly assetModel: Model<AssetDocument>,
+    @InjectModel(AssetEvent.name) private readonly eventModel: Model<AssetEventDocument>,
+  ) {}
+
+  async create(dto: CreateAssetDto) {
+    const exists = await this.assetModel.exists({ code: dto.code });
+    if (exists) throw new BadRequestException('Mã tài sản đã tồn tại');
+
+    const doc = new this.assetModel({
+      code: dto.code,
+      name: dto.name,
+      type: dto.type,
+      model: dto.model,
+      serialNumber: dto.serialNumber,
+      purchasePrice: dto.purchasePrice != null ? { amount: dto.purchasePrice, currency: dto.currency || 'VND' } : undefined,
+      purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : undefined,
+      vendor: dto.vendor,
+      location: dto.location,
+      status: dto.status ?? AssetStatus.IN_STOCK,
+      note: dto.note,
+      metadata: dto.metadata,
+    });
+    const created = await doc.save();
+
+    // Tạo sự kiện PURCHASE nếu có purchaseDate/price
+    if (dto.purchaseDate || dto.purchasePrice) {
+      await this.eventModel.create({
+        assetId: created._id,
+        type: AssetEventType.PURCHASE,
+        eventDate: dto.purchaseDate ? new Date(dto.purchaseDate) : new Date(),
+        note: `Khởi tạo từ create()`,
+        cost: dto.purchasePrice,
+      });
+    }
+    return created;
+  }
+
+  async findAll(query: { text?: string; status?: AssetStatus; type?: string; holderId?: string; page?: number; limit?: number }) {
+    const filter: any = {};
+    if (query.status) filter.status = query.status;
+    if (query.type) filter.type = query.type;
+    if (query.holderId) filter.currentHolderId = new Types.ObjectId(query.holderId);
+
+    let mongoQuery = this.assetModel.find(filter).populate('lastEvent');
+
+    if (query.text) {
+      mongoQuery = mongoQuery.find({ $text: { $search: query.text } });
+    }
+
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const [items, total] = await Promise.all([
+      mongoQuery.sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      this.assetModel.countDocuments(filter),
+    ]);
+
+    return { items, page, limit, total };
+  }
+
+  async findOne(id: string) {
+    const asset = await this.assetModel.findById(id).populate('lastEvent');
+    if (!asset) throw new NotFoundException('Không tìm thấy tài sản');
+    return asset;
+  }
+
+  async update(id: string, dto: UpdateAssetDto) {
+    const asset = await this.assetModel.findById(id);
+    if (!asset) throw new NotFoundException('Không tìm thấy tài sản');
+
+    if (dto.purchasePrice != null || dto.currency) {
+      asset.purchasePrice = { amount: dto.purchasePrice ?? asset.purchasePrice?.amount ?? 0, currency: dto.currency || asset.purchasePrice?.currency || 'VND' };
+    }
+
+    Object.assign(asset, {
+      name: dto.name ?? asset.name,
+      type: dto.type ?? asset.type,
+      model: dto.model ?? asset.model,
+      serialNumber: dto.serialNumber ?? asset.serialNumber,
+      purchaseDate: dto.purchaseDate ? new Date(dto.purchaseDate) : asset.purchaseDate,
+      vendor: dto.vendor ?? asset.vendor,
+      location: dto.location ?? asset.location,
+      status: dto.status ?? asset.status,
+      note: dto.note ?? asset.note,
+      metadata: dto.metadata ?? asset.metadata,
+    });
+    await asset.save();
+    return asset;
+  }
+
+  async remove(id: string) {
+    const res = await this.assetModel.findByIdAndDelete(id);
+    if (!res) throw new NotFoundException('Không tìm thấy tài sản');
+    await this.eventModel.deleteMany({ assetId: res._id });
+    return { ok: true };
+  }
+
+  async assign(id: string, dto: AssignAssetDto) {
+    const asset = await this.assetModel.findById(id);
+    if (!asset) throw new NotFoundException('Không tìm thấy tài sản');
+
+    asset.currentHolderId = new Types.ObjectId(dto.toUserId);
+    asset.status = AssetStatus.ASSIGNED;
+    await asset.save();
+
+    await this.eventModel.create({
+      assetId: asset._id,
+      type: AssetEventType.ASSIGN,
+      eventDate: new Date(dto.handoverDate),
+      toUserId: new Types.ObjectId(dto.toUserId),
+      note: dto.note,
+      document: dto.documentUrl ? { name: 'Biên bản bàn giao', url: dto.documentUrl } : undefined,
+    });
+
+    return asset;
+  }
+
+  async createEvent(assetId: string, dto: CreateAssetEventDto) {
+    const asset = await this.assetModel.findById(assetId);
+    if (!asset) throw new NotFoundException('Không tìm thấy tài sản');
+
+    const payload: any = {
+      assetId: asset._id,
+      type: dto.type,
+      eventDate: new Date(dto.eventDate),
+      actorId: dto.actorId ? new Types.ObjectId(dto.actorId) : undefined,
+      fromUserId: dto.fromUserId ? new Types.ObjectId(dto.fromUserId) : undefined,
+      toUserId: dto.toUserId ? new Types.ObjectId(dto.toUserId) : undefined,
+      cost: dto.cost,
+      note: dto.note,
+      document: dto.documentUrl ? { name: 'Đính kèm', url: dto.documentUrl } : undefined,
+    };
+
+    const ev = await this.eventModel.create(payload);
+
+    // cập nhật trạng thái tài sản phù hợp
+    switch (dto.type) {
+      case AssetEventType.RETURN:
+        asset.currentHolderId = null;
+        asset.status = AssetStatus.IN_STOCK;
+        break;
+      case AssetEventType.TRANSFER:
+        if (!dto.toUserId) throw new BadRequestException('TRANSFER yêu cầu toUserId');
+        asset.currentHolderId = new Types.ObjectId(dto.toUserId);
+        asset.status = AssetStatus.ASSIGNED;
+        break;
+      case AssetEventType.REPAIR:
+        asset.status = AssetStatus.IN_REPAIR;
+        break;
+      case AssetEventType.DISPOSE:
+        asset.currentHolderId = null;
+        asset.status = AssetStatus.DISPOSED;
+        break;
+      case AssetEventType.LOSS:
+        asset.status = AssetStatus.LOST;
+        break;
+      case AssetEventType.ASSIGN:
+        if (!dto.toUserId) throw new BadRequestException('ASSIGN yêu cầu toUserId');
+        asset.currentHolderId = new Types.ObjectId(dto.toUserId);
+        asset.status = AssetStatus.ASSIGNED;
+        break;
+    }
+    await asset.save();
+
+    return { asset, event: ev };
+  }
+
+  async history(assetId: string) {
+    const id = new Types.ObjectId(assetId);
+    const events = await this.eventModel.find({ assetId: id }).sort({ eventDate: -1 }).lean();
+    return events;
+  }
+
+  async listByUser(userId: string) {
+    const uid = new Types.ObjectId(userId);
+    const assets = await this.assetModel.find({ currentHolderId: uid }).lean();
+    return assets;
+  }
+}
+
+// =============================================
+// src/assets/assets.controller.ts
+// =============================================
+import { Controller, Get, Post, Body, Patch, Param, Delete, Query } from '@nestjs/common';
+import { ApiTags, ApiQuery, ApiOkResponse, ApiCreatedResponse } from '@nestjs/swagger';
+import { AssetsService } from './assets.service';
+import { CreateAssetDto } from './dto/create-asset.dto';
+import { UpdateAssetDto } from './dto/update-asset.dto';
+import { AssignAssetDto } from './dto/assign-asset.dto';
+import { CreateAssetEventDto } from './dto/create-event.dto';
+
+@ApiTags('assets')
+@Controller('assets')
+export class AssetsController {
+  constructor(private readonly assetsService: AssetsService) {}
+
+  @Post()
+  @ApiCreatedResponse({ description: 'Tạo tài sản' })
+  create(@Body() dto: CreateAssetDto) {
+    return this.assetsService.create(dto);
+  }
+
+  @Get()
+  @ApiOkResponse({ description: 'Danh sách tài sản (có phân trang)' })
+  @ApiQuery({ name: 'text', required: false })
+  findAll(@Query() query: any) {
+    return this.assetsService.findAll(query);
+  }
+
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.assetsService.findOne(id);
+  }
+
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateAssetDto) {
+    return this.assetsService.update(id, dto);
+  }
+
+  @Delete(':id')
+  remove(@Param('id') id: string) {
+    return this.assetsService.remove(id);
+  }
+
+  // Bàn giao/assign nhanh
+  @Post(':id/assign')
+  assign(@Param('id') id: string, @Body() dto: AssignAssetDto) {
+    return this.assetsService.assign(id, dto);
+  }
+
+  // Tạo sự kiện lịch sử: purchase/transfer/repair/return/dispose/loss/assign
+  @Post(':id/events')
+  createEvent(@Param('id') id: string, @Body() dto: CreateAssetEventDto) {
+    return this.assetsService.createEvent(id, dto);
+  }
+
+  @Get(':id/history')
+  history(@Param('id') id: string) {
+    return this.assetsService.history(id);
+  }
+}
+
+// =============================================
+// src/assets/assets.module.ts
+// =============================================
+import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { AssetsService } from './assets.service';
+import { AssetsController } from './assets.controller';
+import { Asset, AssetSchema } from './schemas/asset.schema';
+import { AssetEvent, AssetEventSchema } from './schemas/asset-event.schema';
+import { AssetDocument as AssetDoc, AssetDocumentSchema } from './schemas/asset-document.schema';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([
+      { name: Asset.name, schema: AssetSchema },
+      { name: AssetEvent.name, schema: AssetEventSchema },
+      { name: AssetDoc.name, schema: AssetDocumentSchema },
+    ]),
+  ],
+  controllers: [AssetsController],
+  providers: [AssetsService],
+  exports: [AssetsService],
+})
+export class AssetsModule {}
+
+// =============================================
+// src/users/users.controller.ts (bổ sung các endpoint tiện dụng)
+// =============================================
+// Chỉ phần thêm – giả sử đã có UsersController, bạn có thể ghép:
+// @Get(':id/assets') -> trả danh sách tài sản của user
+/*
+@Get(':id/assets')
+getAssetsOfUser(@Param('id') id: string) {
+  return this.assetsService.listByUser(id);
+}
+*/
+
+// =============================================
+// Gợi ý tích hợp với User & UserDocument hiện có
+// =============================================
+// - Trong user.schema.ts đảm bảo modelName là 'User'. Nếu khác, sửa ref ở các schema trên.
+// - Nếu đã có user-document.schema.ts dùng chung cho mọi loại văn bản,
+//   thêm field refType: 'user' | 'asset' và refId: ObjectId để liên kết tài sản.
+//   Khi đó bạn có thể bỏ AssetDocumentSchema và thay bằng tạo bản ghi UserDocument với refType='asset'.
+
+// =============================================
+// Một số truy vấn hữu ích (aggregation) – đặt trong service tuỳ nhu cầu
+// =============================================
+/*
+async statsByStatus() {
+  return this.assetModel.aggregate([
+    { $group: { _id: '$status', count: { $sum: 1 } } },
+    { $sort: { count: -1 } },
+  ]);
+}
+
+async historyTimeline(assetId: string) {
+  return this.eventModel.aggregate([
+    { $match: { assetId: new Types.ObjectId(assetId) } },
+    { $sort: { eventDate: -1 } },
+  ]);
+}
+*/
+
+// =============================================
+// Bảo toàn dữ liệu & chỉ mục
+// =============================================
+// - Đảm bảo unique index trên code của Asset.
+// - Index (status, type), (currentHolderId) để lọc nhanh.
+// - Index (assetId, eventDate) trên AssetEvent để đọc lịch sử hiệu quả.
+
+// =============================================
+// Swagger
+// =============================================
+// - Module này đã dùng @ApiTags và DTO có @ApiProperty. Bật Swagger ở app chính như thường lệ.
+
+// =============================================
+// Bảo mật & phân quyền (gợi ý)
+// =============================================
+// - Sử dụng Guards (Roles/Permissions) cho các hành động DISPOSE/LOSS/REPAIR.
+// - Ghi nhận actorId từ JWT (req.user.sub) khi tạo sự kiện.
+
+// =============================================
+// Kết nối RouterModule (tùy chọn): /assets ... như trên.
+// =============================================
