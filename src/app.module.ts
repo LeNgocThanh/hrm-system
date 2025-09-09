@@ -18,6 +18,7 @@ import { MeetingRoomsModule } from './meeting-rooms/meeting-rooms.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { ScheduleModule} from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
+import { NoticesModule } from './notices/notices.module';
 
 
 @Module({
@@ -43,7 +44,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     AssetsModule,
     MeetingRoomsModule,
     MeetingsModule,
-    NotificationsModule, // đổi connection string nếu dùng Mongo Atlas
+    NotificationsModule,
+    NoticesModule, // đổi connection string nếu dùng Mongo Atlas
   ],
 })
 export class AppModule {}
