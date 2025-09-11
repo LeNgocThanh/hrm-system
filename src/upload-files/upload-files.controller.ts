@@ -12,6 +12,8 @@ import {
   FileTypeValidator,
   InternalServerErrorException,
   Param,
+  UseGuards,
+  Req,
 } from '@nestjs/common';
 import { UploadFilesService } from './upload-files.service';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -19,10 +21,12 @@ import { ApiConsumes, ApiBody, ApiTags, ApiResponse } from '@nestjs/swagger';
 import { FileUploadDto } from './dto/upload-files.dto';
 import { FileResponseDto } from './dto/upload-files-response.dto';
 import { UploadFile } from './schemas/upload-files.schema';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 
 @ApiTags('UploadFiles') // Thêm tag cho Swagger UI
 @Controller('files')
+@UseGuards(JwtAuthGuard)
 export class UploadFilesController {
   constructor(private readonly filesService: UploadFilesService) {}
 
@@ -40,6 +44,7 @@ export class UploadFilesController {
   })
   @ApiResponse({ status: 500, description: 'Lỗi server' })
   async uploadFile(
+    @Req() req: any,
     @UploadedFile(
       new ParseFilePipe({
         validators: [
@@ -52,7 +57,8 @@ export class UploadFilesController {
     @Body() body: FileUploadDto, // Nhận các trường dữ liệu khác từ body
   ): Promise<FileResponseDto> {
     try {
-      const { uploadedBy, resourceType, relatedId } = body;
+      const uploadedBy = req.user._id || req.user.id || req.user.userId || req.user;
+      const { resourceType, relatedId } = body;
 
       // Kiểm tra uploadedBy, nếu không có thì trả về lỗi
       if (!uploadedBy) {
@@ -95,3 +101,5 @@ export class UploadFilesController {
       return this.filesService.findOne(id);
     }
 }
+
+

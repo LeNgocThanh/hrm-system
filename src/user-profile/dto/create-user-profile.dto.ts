@@ -1,6 +1,7 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsString, IsOptional, IsNotEmpty, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsNotEmpty, IsDateString, IsEnum } from 'class-validator';
 import { Types } from 'mongoose';
+import { EDUCATION_LEVELS } from '../common/user-profiles.enum';
 
 export class CreateUserProfileDto {
   @ApiProperty({ description: 'ID của User', type: String })
@@ -56,4 +57,14 @@ export class CreateUserProfileDto {
   @IsOptional()
   @IsString()
   bankBranch?: string;
+
+  @ApiProperty({ description: 'Trình độ học vấn', required: false })
+  @IsOptional()
+  @IsEnum(EDUCATION_LEVELS)
+  educationLevel?: EDUCATION_LEVELS;
+
+  @ApiProperty({ description: 'Chứng chỉ', required: false })
+  @IsOptional()
+  @IsString()
+  certificate?: string;
 }

@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Types } from 'mongoose';
+import { EDUCATION_LEVELS } from '../common/user-profiles.enum';
 
 export class UserProfileResponseDto {
   @ApiProperty({ description: 'ID của User', type: String })
@@ -34,4 +35,10 @@ export class UserProfileResponseDto {
 
   @ApiProperty({ description: 'Chi nhánh ngân hàng', required: false })
   bankBranch?: string;
+
+  @ApiProperty({ description: 'Trình độ học vấn', required: false })
+  educationLevel?: EDUCATION_LEVELS;
+
+  @ApiProperty({ description: 'Chứng chỉ', required: false })
+  certificate?: string;
 }

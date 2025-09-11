@@ -1,5 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { EDUCATION_LEVELS } from '../common/user-profiles.enum';
+import { use } from 'passport';
 
 export type UserProfileDocument = UserProfile & Document;
 
@@ -21,6 +23,11 @@ export class UserProfile {
   @Prop() bankAccount?: string;
   @Prop() bankName?: string;
   @Prop() bankBranch?: string;
+  @Prop() edulcationLevel?: EDUCATION_LEVELS; 
+  @Prop() certificate?: string;
   
 }
 export const UserProfileSchema = SchemaFactory.createForClass(UserProfile);
+
+
+

@@ -95,3 +95,6 @@ NoticeSchema.pre<NoticeDocument>('validate', function (next) {
 NoticeSchema.index({ title: 'text', content: 'text', tags: 'text' }, { weights: { title: 5, tags: 3, content: 1 } })
 NoticeSchema.index({ status: 1, publishAt: 1 })
 NoticeSchema.index({ category: 1, createdAt: -1 })
+NoticeSchema.index({ publishAt: -1 });
+NoticeSchema.index({ expireAt: -1 });
+NoticeSchema.index({ visibility: 1 });
