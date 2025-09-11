@@ -23,7 +23,7 @@ export class UserProfile {
   @Prop() bankAccount?: string;
   @Prop() bankName?: string;
   @Prop() bankBranch?: string;
-  @Prop() edulcationLevel?: EDUCATION_LEVELS; 
+  @Prop() educationLevel?: EDUCATION_LEVELS; 
   @Prop() certificate?: string;
   
 }

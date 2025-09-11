@@ -36,7 +36,7 @@ export class UserProfileResponseDto {
   @ApiProperty({ description: 'Chi nhánh ngân hàng', required: false })
   bankBranch?: string;
 
-  @ApiProperty({ description: 'Trình độ học vấn', required: false })
+  @ApiProperty({ description: 'Trình độ học vấn', required: false, enum: EDUCATION_LEVELS })
   educationLevel?: EDUCATION_LEVELS;
 
   @ApiProperty({ description: 'Chứng chỉ', required: false })

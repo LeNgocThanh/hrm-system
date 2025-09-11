@@ -42,6 +42,7 @@ export class UserProfileController {
     @Param('userId') userId: string,
     @Body() dto: UpdateUserProfileDto,
   ): Promise<UserProfileResponseDto> {
+    console.log('Updating user profile for userId:', userId, 'with data:', dto);
     const updated = await this.userProfileModel.findOneAndUpdate(
       { userId },
       dto,
