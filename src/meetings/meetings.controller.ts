@@ -42,6 +42,10 @@ export class MeetingsController {
     return this.meetings.approve(id, dto, req.user.userId);
   }
 
+
+  @RequirePermissions({
+  modules: { anyOf: ['All', 'Meeting'] },
+  actions: { anyOf: ['manage','approve','update'] },}) 
   @Patch(':id')
   @ApiOperation({
     summary: 'Cập nhật cuộc họp',

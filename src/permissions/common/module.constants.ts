@@ -3,4 +3,5 @@ export enum Module {
   All = 'All', // tất cả các module
   Asset = 'Asset',//module tài sản
   Meeting = 'Meeting',//module lịch họp
+  Notice = 'Notice',//module thông báo
 }

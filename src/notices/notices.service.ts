@@ -75,7 +75,7 @@ export class NoticesService {
       {
         $or: [
           { status: NoticeStatus.Published, $expr: { $lte: ['$publishAt', new Date()] } },
-          { status: { $ne: NoticeStatus.Published } },
+         // { status: { $ne: NoticeStatus.Published } },
         ],
       },
       {

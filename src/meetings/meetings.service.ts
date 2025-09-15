@@ -186,6 +186,8 @@ export class MeetingsService {
               roomId: meeting.roomId,
             },
             status: 'UNREAD',
+            publishAt: startOfDayLocal(new Date(meeting.startAt)), // sáng nay
+            expireAt: endOfDayLocal(new Date(meeting.endAt)), // 30 ngày
           }));
 
           // chèn trong cùng session/transaction

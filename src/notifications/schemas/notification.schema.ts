@@ -26,7 +26,14 @@ export class Notification {
 
   @Prop({ type: String, enum: NotificationStatus, default: NotificationStatus.UNREAD, index: true })
   status: NotificationStatus;
+
+  @Prop({ type: Date })
+  publishAt?: Date
+
+  @Prop({ type: Date })
+  expireAt?: Date
 }
 export type NotificationDocument = HydratedDocument<Notification>;
 export const NotificationSchema = SchemaFactory.createForClass(Notification);
 NotificationSchema.index({ userId: 1, status: 1, createdAt: -1 });
+

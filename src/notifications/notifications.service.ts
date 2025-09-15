@@ -53,7 +53,7 @@ export class NotificationsService {
     const from = startOfDayLocal(date);
     const to   = endOfDayLocal(date);
 
-    const filter: any = { userId: uid, createdAt: { $gte: from, $lte: to } };
+    const filter: any = { userId: uid, publishAt: { $gte: from, $lte: to } };
     if (opts.status && opts.status !== 'ANY') filter.status = opts.status;
     if (opts.onlyMeeting) filter.meetingId = { $exists: true, $ne: null };
 
@@ -104,6 +104,13 @@ async listForUser(
   async markAllRead(userId: string) {
     return this.model.updateMany(
       { userId: new Types.ObjectId(userId), status: NotificationStatus.UNREAD },
+      { $set: { status: NotificationStatus.READ } },
+    );
+  }
+
+  async markAllPastRead() {
+    return this.model.updateMany(
+      { status: NotificationStatus.UNREAD, expireAt: { $lt: new Date() } },
       { $set: { status: NotificationStatus.READ } },
     );
   }

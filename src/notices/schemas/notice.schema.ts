@@ -7,12 +7,18 @@ export enum NoticeStatus {
   Draft = 'draft',
   Published = 'published',
   Archived = 'archived',
+  // Draft => Published, Archived
+  // Published => Archived
+  // Archived => Published
 }
 
 export enum NoticeVisibility {
   Public = 'public',
   Internal = 'internal',
   RoleBased = 'role_based',
+  // RoleBased => chỉ những ai có quyền trong allowedPermissions mới xem được hiện tại chưa dùng
+  // Public => ai cũng xem được mở rộng cho thông báo không cần quyền
+  // Internal => chỉ nhân viên trong công ty xem được (hiện chỉ sử dụng chính)
 }
 
 @Schema({ timestamps: true })

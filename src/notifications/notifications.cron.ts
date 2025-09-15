@@ -16,31 +16,39 @@ export class NotificationsCron {
   ) {}
 
   // 07:00 hằng ngày (giờ VN). Nếu bạn đã bật ScheduleModule.forRoot({ timezone: 'Asia/Ho_Chi_Minh' })
-  @Cron(CronExpression.EVERY_DAY_AT_7AM)
-  async remindTodaysAccepted() {
-    const now = new Date();
-    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0);
-    const to   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23,59,59,999);
+  // @Cron(CronExpression.EVERY_DAY_AT_7AM)
+  // async remindTodaysAccepted() {
+  //   const now = new Date();
+  //   const from = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0,0,0,0);
+  //   const to   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23,59,59,999);
 
-    const meetings = await this.meetingModel.find({
-      status: { $in: [MeetingStatus.SCHEDULED, MeetingStatus.IN_PROGRESS] },
-      startAt: { $gte: from, $lte: to },
-    }).lean();
+  //   const meetings = await this.meetingModel.find({
+  //     status: { $in: [MeetingStatus.SCHEDULED, MeetingStatus.IN_PROGRESS] },
+  //     startAt: { $gte: from, $lte: to },
+  //   }).lean();
 
-    for (const m of meetings) {
-      const accepted = (m.participants || []).filter(p => p.response === 'ACCEPTED'); // enum của bạn
-      if (!accepted.length) continue;
+  //   for (const m of meetings) {
+  //     const accepted = (m.participants || []).filter(p => p.response === 'ACCEPTED'); // enum của bạn
+  //     if (!accepted.length) continue;
 
-      await this.notif.createMany(accepted.map(p => ({
-        userId: p.userId,
-        meetingId: m._id,
-        type: NotificationType.MEETING_REMINDER,
-        title: `Nhắc lịch: ${m.title}`,
-        message: `Bắt đầu: ${new Date(m.startAt).toLocaleString()} · Phòng: ${String(m.roomId)}`,
-        meta: { startAt: m.startAt, roomId: m.roomId },
-      })));
-    }
+  //     await this.notif.createMany(accepted.map(p => ({
+  //       userId: p.userId,
+  //       meetingId: m._id,
+  //       type: NotificationType.MEETING_REMINDER,
+  //       title: `Nhắc lịch: ${m.title}`,
+  //       message: `Bắt đầu: ${new Date(m.startAt).toLocaleString()} · Phòng: ${String(m.roomId)}`,
+  //       meta: { startAt: m.startAt, roomId: m.roomId },
+  //     })));
+  //   }
 
-    this.log.log(`Sent reminders for ${meetings.length} meetings`);
+  //   this.log.log(`Sent reminders for ${meetings.length} meetings`);
+  // }
+  
+   @Cron(CronExpression.EVERY_DAY_AT_7AM)
+  async makeAllReadPast() {    
+
+      await this.notif.markAllPastRead();    
+
+    this.log.log(`Marked all past notifications as read`);
   }
 }
