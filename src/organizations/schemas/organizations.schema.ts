@@ -31,3 +31,13 @@ export class Organization {
 }
 
 export const OrganizationSchema = SchemaFactory.createForClass(Organization);
+// OrganizationSchema.post('findOneAndDelete', async function (doc: any) {
+//   if (!doc) return;
+//   try {
+//     await doc.model('UserAssignment').deleteMany({ organizationId: doc._id });
+//   } catch (e) {
+//     // log lỗi thay vì nuốt im lặng
+//     console.error('[cascade UserAssignment] failed', { orgId: doc._id, error: e });
+//     // tùy yêu cầu: có thể throw để rollback nếu đang trong transaction
+//   }
+// });

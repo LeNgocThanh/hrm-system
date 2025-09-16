@@ -85,7 +85,10 @@ export class OrganizationsService {
   }
 
   async delete(id: string): Promise<OrganizationResponseDto> {
+    
     const deletedOrganization = await this.organizationModel.findByIdAndDelete(id).exec();
+    // Xoá các UserAssignment liên quan đến tổ chức này
+    await this.userAssignmentModel.deleteMany({ organizationId: id }).exec();
     return deletedOrganization?.toObject() as unknown as OrganizationResponseDto;
   }
 
