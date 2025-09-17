@@ -109,10 +109,16 @@ export class AuthService {
       roles: scopedPermissions,
     };
 
+    const refresh_tokenPayLoad: JwtPayload = {
+      sub: userId,
+      email: user.email,
+      fullName: user.fullName,     
+    };
+
     // Trả về access token, refresh token và các thông tin đã tổng hợp
     return {
       access_token: this.jwtService.sign(payload, { expiresIn: process.env.JWT_EXPIRATION_TIME || '4h' }), // Tạo access token
-      refresh_token: this.jwtService.sign(payload, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '2d' }), // Tạo refresh token
+      refresh_token: this.jwtService.sign(refresh_tokenPayLoad, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '2d' }), // Tạo refresh token
       user: {
         id: user._id,
         fullName: user.fullName,
@@ -162,12 +168,18 @@ export class AuthService {
       sub: userId,
       email: user.email,
       fullName: user.fullName,
-      roles: scopedPermissions, // <<— QUAN TRỌNG nếu bạn gắn quyền vào JWT
+      roles: scopedPermissions, 
+    };
+
+     const refresh_tokenPayLoad: JwtPayload = {
+      sub: userId,
+      email: user.email,
+      fullName: user.fullName,      
     };
 
     // 4) Ký lại access & refresh
-    const access_token = this.jwtService.sign(payload, { expiresIn: process.env.JWT_EXPIRATION_TIME || '15m' });
-    const refresh_token = this.jwtService.sign(payload, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '7d' });
+    const access_token = this.jwtService.sign(payload, { expiresIn: process.env.JWT_EXPIRATION_TIME || '4h' });
+    const refresh_token = this.jwtService.sign(refresh_tokenPayLoad, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '7d' });
 
     return {
       access_token,

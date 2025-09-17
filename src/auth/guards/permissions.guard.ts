@@ -30,6 +30,7 @@ export class PermissionsGuard implements CanActivate {
     const req = context.switchToHttp().getRequest();
     
     const user = req.user as { roles?: RoleScope[] };
+    console.log('User:', user);
    
     if (!user?.roles || user.roles.length === 0) return false;
 
