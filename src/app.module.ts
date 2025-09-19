@@ -45,7 +45,7 @@ import { NoticesModule } from './notices/notices.module';
     MeetingRoomsModule,
     MeetingsModule,
     NotificationsModule,
-    NoticesModule, // đổi connection string nếu dùng Mongo Atlas
-  ],
+    NoticesModule, 
+  ]
 })
 export class AppModule {}
