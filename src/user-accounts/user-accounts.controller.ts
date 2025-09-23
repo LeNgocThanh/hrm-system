@@ -1,7 +1,7 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, HttpStatus, HttpException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { UserAccountsService } from './user-accounts.service';
-import { CreateUserAccountDto, UpdateUserAccountDto, UserAccountResponseDto } from './dto';
+import { CreateUserAccountDto, UpdateUserAccountDto, UserAccountResponseDto, ChangePasswordDto } from './dto';
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiBearerAuth } from '@nestjs/swagger';
@@ -58,6 +58,27 @@ export class UserAccountsController {
   @ApiResponse({ status: 404, description: 'Account not found' })
   findByUserId(@Param('userId') userId: string): Promise<UserAccountResponseDto | null> {
     return this.userAccountsService.findByUserId(userId);
+  }
+
+  @Post(':id/change-password')
+  @ApiOperation({ summary: 'Change user password' })
+  @ApiResponse({ status: HttpStatus.OK, description: 'Password changed successfully' })
+  @ApiResponse({ status: HttpStatus.NOT_FOUND, description: 'Account not found' })
+  @ApiResponse({ status: HttpStatus.BAD_REQUEST, description: 'Invalid old password' })
+  async changePassword(
+    @Param('id') id: string,
+    @Body() changePasswordDto: ChangePasswordDto,
+  ): Promise<UserAccountResponseDto> {
+    try {
+      const updatedUser = await this.userAccountsService.changePassword(id, changePasswordDto);
+      return updatedUser;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      // Handle other potential errors, e.g., database connection issues
+      throw new HttpException('Internal Server Error', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   @Patch(':id')

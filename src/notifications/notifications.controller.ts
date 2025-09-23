@@ -19,6 +19,7 @@ async myList(
   @Query('limit') limit?: string,
 ) {
   const userId = req.user._id || req.user.id || req.user.userId || req.user;
+  console.log('NotificationsController.myList for user', userId, { status, type, from, to, limit });
   return this.svc.listForUser(userId, {
     status: (status as any) || undefined,
     type: type as NotificationType,

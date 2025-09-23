@@ -1,9 +1,11 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { Model, ObjectId } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UserAccount, UserAccountDocument } from './schemas/user-account.schema';
 import { CreateUserAccountDto, UpdateUserAccountDto, UserAccountResponseDto } from './dto';
+import { HttpException, HttpStatus } from '@nestjs/common';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class UserAccountsService {
@@ -92,6 +94,44 @@ export class UserAccountsService {
     }
 
     return this.toResponseDto(updatedAccount);
+  }
+  //only for reset password
+  async changePassword(
+    id: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<UserAccountResponseDto> {
+    const { oldPassword, newPassword } = changePasswordDto;
+
+    // 1. Find the user account
+    const userAccount = await this.userAccountModel.findById(id);
+    if (!userAccount) {
+      throw new HttpException('Account not found', HttpStatus.NOT_FOUND);
+    }
+
+    // 2. Compare the old password with the stored password
+    const isPasswordMatch = await bcrypt.compare(oldPassword, userAccount.password);
+    if (!isPasswordMatch) {
+      throw new HttpException('Invalid old password', HttpStatus.BAD_REQUEST);
+    }
+
+    // 3. Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    userAccount.password = await bcrypt.hash(newPassword, salt);
+
+    // 4. Save the updated user account
+    const updatedUser = await userAccount.save();
+
+    // 5. Return the updated user without the password field
+    // (You'll need a way to transform the Mongoose document to a DTO,
+    // for example, by creating a UserAccountResponseDto class)
+    const userResponse = new UserAccountResponseDto();
+    // Assuming your DTO has these fields
+    userResponse._id = updatedUser._id as string;
+    userResponse.userId = updatedUser.userId.toString();
+    userResponse.username = updatedUser.username;
+    // ...other fields
+
+    return userResponse;
   }
 
   async remove(id: string): Promise<UserAccountResponseDto> {

@@ -1,5 +1,5 @@
 import { Type, Transform } from 'class-transformer'
-import { IsArray, IsDate, IsIn, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator'
+import { IsArray, IsDate, IsIn, IsOptional, IsString, MaxLength, ValidateNested, IsMongoId } from 'class-validator'
 import { NoticeStatus, NoticeVisibility } from '../schemas/notice.schema'
 
 // Tiện ích: chấp nhận tags=tag1,tag2 hoặc lặp ?tags=tag1&tags=tag2
@@ -7,6 +7,27 @@ const toArray = (v: any) =>
   Array.isArray(v) ? v : (v != null ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : undefined)
 
 export class AdminPatchNoticeDto {
+  
+    @IsOptional()
+    @IsString()
+    @MaxLength(220)
+    slug?: string
+  
+    @IsOptional()
+    @IsString()
+    @MaxLength(500)
+    summary?: string 
+    
+  
+    @IsOptional()
+    @IsArray()
+    @IsMongoId({ each: true })
+    attachments?: string[]
+  
+    @IsOptional()
+    @IsMongoId()
+    coverImage?: string
+
   // Hai trường chính mà anh/chị muốn chỉnh bằng PATCH
   @IsOptional()
   @IsIn(['draft', 'published', 'archived'])

@@ -287,6 +287,11 @@ async patchAdmin(id: string, dto: AdminPatchNoticeDto, opts?: { updatedBy?: stri
     if (dto.category !== undefined) update.category = dto.category
     if (dto.tags !== undefined) update.tags = dto.tags
 
+    if (dto.attachments !== undefined) update.attachments = dto.attachments
+    if (dto.coverImage !== undefined) update.coverImage = dto.coverImage
+
+    if (dto.summary !== undefined) update.summary = dto.summary
+    
     // Nếu schema có:
     // if (dto.allowedPermissions !== undefined) update.allowedPermissions = dto.allowedPermissions
 
