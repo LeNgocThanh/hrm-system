@@ -20,6 +20,7 @@ import { ScheduleModule} from '@nestjs/schedule';
 import { NotificationsModule } from './notifications/notifications.module';
 import { NoticesModule } from './notices/notices.module';
 import { LeaveModule } from './leave/leave.module';
+import { OverTimeModule } from './over-time/over-time.module';
 
 
 @Module({
@@ -47,7 +48,8 @@ import { LeaveModule } from './leave/leave.module';
     MeetingsModule,
     NotificationsModule,
     NoticesModule,
-    LeaveModule, 
+    LeaveModule,
+    OverTimeModule, 
   ]
 })
 export class AppModule {}
