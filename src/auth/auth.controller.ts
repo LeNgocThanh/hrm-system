@@ -65,7 +65,7 @@ export class AuthController {
       const decodedRefreshToken = await this.authService.validateRefreshToken(refreshTokenFromCookie);
 
       // Nếu refresh token hợp lệ, tạo access token mới và refresh token mới (tùy chọn)
-      const result = await this.authService.refreshToken(decodedRefreshToken.sub); // decodedRefreshToken.sub là userId
+      const result = await this.authService.refreshToken(decodedRefreshToken.sub, decodedRefreshToken.accountId); // decodedRefreshToken.sub là userId
 
       // Cập nhật refresh token trong HttpOnly cookie (nếu có refresh token mới)
      response.cookie('accessToken', result.access_token, {

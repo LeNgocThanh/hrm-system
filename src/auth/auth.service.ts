@@ -11,6 +11,7 @@ import { UserAssignment } from '../user-assignments/schemas/user-assignment.sche
 import { Permission } from '../permissions/schemas/permission.schema';
 
 export interface JwtPayload {
+  accountId?: string;
   sub: string;
   email: string;
   fullName: string;
@@ -65,6 +66,7 @@ export class AuthService {
     }
 
     const userId = validatedData.userId.toString();
+    const accountId = validatedData.accountId.toString();
 
     // 1. Lấy thông tin người dùng chi tiết
     const user = await this.usersService.findOne(userId);
@@ -103,6 +105,7 @@ export class AuthService {
 
     // Tạo JWT payload
     const payload: JwtPayload = {
+      accountId: accountId,
       sub: userId,
       email: user.email,
       fullName: user.fullName,
@@ -110,6 +113,7 @@ export class AuthService {
     };
 
     const refresh_tokenPayLoad: JwtPayload = {
+      accountId: accountId,
       sub: userId,
       email: user.email,
       fullName: user.fullName,     
@@ -120,6 +124,7 @@ export class AuthService {
       access_token: this.jwtService.sign(payload, { expiresIn: process.env.JWT_EXPIRATION_TIME || '4h' }), // Tạo access token
       refresh_token: this.jwtService.sign(refresh_tokenPayLoad, { expiresIn: process.env.JWT_REFRESH_EXPIRATION_TIME || '2d' }), // Tạo refresh token
       user: {
+        accountId: accountId,
         id: user._id,
         fullName: user.fullName,
         email: user.email,
@@ -129,7 +134,7 @@ export class AuthService {
     };
   }
 
-  async refreshToken(userId: string) {
+  async refreshToken(userId: string, accountId: string) {
     // Find account by userId to get user info
     // Lưu ý: Ở đây bạn cần xác thực refresh token từ cookie, không phải chỉ dựa vào userId
     // Logic này cần được điều chỉnh để đọc và xác thực refresh token từ request
@@ -165,6 +170,7 @@ export class AuthService {
 
     // 3) Payload đồng nhất với login (có roles/scopedPermissions nếu bạn đang dùng)
     const payload: JwtPayload = {
+      accountId: accountId,
       sub: userId,
       email: user.email,
       fullName: user.fullName,
@@ -172,6 +178,7 @@ export class AuthService {
     };
 
      const refresh_tokenPayLoad: JwtPayload = {
+      accountId: accountId,
       sub: userId,
       email: user.email,
       fullName: user.fullName,      
