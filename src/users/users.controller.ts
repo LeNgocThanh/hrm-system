@@ -21,7 +21,7 @@ export class UsersController {
 
   @RequirePermissions({
   modules: { anyOf: ['All', 'User'] },
-  actions: { anyOf: ['manage','read'] },})
+  actions: { anyOf: ['manage','read', 'viewOwner'] },})
   @Get()
   findAll(): Promise<UserResponseDto[]> {
     return this.usersService.findAll();
