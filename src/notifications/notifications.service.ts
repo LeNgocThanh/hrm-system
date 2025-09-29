@@ -86,9 +86,6 @@ async listForUser(
     }
 
     const limit = Math.min(Math.max(q.limit ?? 50, 1), 200);
-
-    // DEBUG (nếu cần): console.log('Notif filter:', JSON.stringify(filter));
-   // console.log('Notif filter:', JSON.stringify(filter));
     return this.model.find(filter).sort({ createdAt: -1 }).limit(limit).lean();
   }
 

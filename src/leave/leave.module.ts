@@ -4,12 +4,16 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { LeaveController } from './leave.controller';
 import { LeaveService } from './leave.service';
 import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
+import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
+import { OrganizationsModule } from 'src/organizations/organizations.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: LeaveRequest.name, schema: LeaveRequestSchema },
     ]),
+    UserAssignmentsModule,
+    OrganizationsModule,
   ],
   controllers: [LeaveController],
   providers: [LeaveService],

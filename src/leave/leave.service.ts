@@ -15,6 +15,10 @@ import { QueryLeaveDto } from './dto/query-leave.dto';
 
 import { LeaveType, LeaveUnit } from './common/leave-type.enum';
 
+import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
+import { OrganizationsService } from 'src/organizations/organizations.service';
+
+
 
 // (tuỳ dự án) Bạn có thể hiện thực các service dưới hoặc bỏ @Optional() để khỏi inject.
 export interface WorkingCalendarService {
@@ -67,10 +71,14 @@ export class LeaveService {
   constructor(
     @InjectModel(LeaveRequest.name)
     private readonly leaveModel: Model<LeaveRequestDocument>,
+    private readonly userAssignmentsService: UserAssignmentsService,
+    private readonly organizationsService: OrganizationsService,
 
     @Optional() private readonly calendar?: WorkingCalendarService,
     @Optional() private readonly timesheet?: TimesheetService,
-  ) {}
+
+
+  ) { }
 
   // =========================
   // ======= CREATE ==========
@@ -116,7 +124,7 @@ export class LeaveService {
     if (leave.status !== 'pending') {
       throw new BadRequestException('Chỉ đơn trạng thái pending mới được cập nhật');
     }
-   
+
     if (dto.userId) leave.userId = new Types.ObjectId(dto.userId);
     if (dto.leaveType) leave.leaveType = dto.leaveType;
     if (dto.reason !== undefined) leave.reason = dto.reason;
@@ -164,7 +172,7 @@ export class LeaveService {
     if (dto.action === 'reject') leave.status = 'rejected' as any;
     if (dto.action === 'cancel') leave.status = 'cancelled' as any;
 
-    const saved = await leave.save();    
+    const saved = await leave.save();
 
     // Hook timesheet (nếu có)
     try {
@@ -177,8 +185,8 @@ export class LeaveService {
         // (reject) không cần tác động timesheet
       }
     } catch (e) {
-      
-       console.error('Timesheet hook error:', e);
+
+      console.error('Timesheet hook error:', e);
     }
 
     return saved;
@@ -198,74 +206,109 @@ export class LeaveService {
     return doc;
   }
 
-  async query(q: QueryLeaveDto) {
-    const filter: FilterQuery<LeaveRequest> = {};
+  async query(q: QueryLeaveDto, userId: string, roles: any[]): Promise<LeaveRequest[]> {
+    const filter: FilterQuery<LeaveRequestDocument> = {};  
     if (q.userId) filter.userId = new Types.ObjectId(q.userId);
-    if (q.reviewerId) filter.reviewerId = new Types.ObjectId(q.reviewerId);
-    if (q.status) filter.status = q.status as any;
-    if (q.leaveType) filter.leaveType = q.leaveType as LeaveType;
-    if (q.unit) filter['segments.unit'] = q.unit as LeaveUnit;
-
-    // Giao khoảng thời gian với bất kỳ segment
+    if (q.leaveType) filter.leaveType = q.leaveType;
+    if (q.status) filter.status = q.status; 
     if (q.from || q.to) {
-      const or: any[] = [];
+      filter.segments = { $elemMatch: {} };
+      if (q.from) filter.segments.$elemMatch.toDate = { $gte: atMidnight(new Date(q.from)) };
+      if (q.to) filter.segments.$elemMatch.fromDate = { $lte: atMidnight(new Date(q.to)) };
+    }
+    if (q.q) {
+      filter.reason = { $regex: q.q, $options: 'i' };
+    }
+    if (q.unit && q.unit.length > 0) {
+      filter.segments = filter.segments || { $elemMatch: {} };
+      filter.segments.$elemMatch = filter.segments.$elemMatch || {};
+      filter.segments.$elemMatch.unit = { $in: q.unit };
+    }
+    const moduleNames = ['All', 'LeaveRequest'];
 
-      // DAY
-      const day: any = { 'segments.unit': LeaveUnit.DAY };
-      if (q.from) day['segments.toDate'] = { $gte: q.from };
-      if (q.to) day['segments.fromDate'] = { ...(day['segments.fromDate'] || {}), $lte: q.to };
-      or.push(day);
+    // Hàm tiện ích để kiểm tra quyền
+    const hasPermission = (action: string) => {
+      return roles.some(scope =>
+        moduleNames.some(moduleName =>
+          scope.groupedPermissions?.[moduleName]?.includes(action)
+        )
+      );
+    };
 
-      // HALF_DAY
-      const half: any = { 'segments.unit': LeaveUnit.HALF_DAY };
-      if (q.from) half['segments.date'] = { $gte: q.from };
-      if (q.to) half['segments.date'] = { ...(half['segments.date'] || {}), $lte: q.to };
-      or.push(half);
-
-      // HOUR
-      const hour: any = { 'segments.unit': LeaveUnit.HOUR };
-      if (q.from) hour['segments.endAt'] = { $gte: q.from };
-      if (q.to) hour['segments.startAt'] = { ...(hour['segments.startAt'] || {}), $lte: q.to };
-      or.push(hour);
-
-      filter.$or = or;
+    // 1. Kiểm tra quyền "manage"
+    if (hasPermission('manage')) {
+      // Có quyền manage => get tất cả
+      return this.leaveModel.find(filter).exec();
     }
 
-    if (q.q?.trim()) {
-      filter.reason = { $regex: q.q.trim(), $options: 'i' };
+    // 2. Kiểm tra quyền "read"
+    if (hasPermission('read')) {
+      // Có quyền read => get toàn bộ cây tổ chức
+      const userAssignments = await this.userAssignmentsService.findByUserId(userId);
+      const userOrgIds = userAssignments.map(a => a.organizationId._id.toString());
+
+
+      const allUsersInScope = new Set<string>();
+      for (const orgId of userOrgIds) {
+        const { users } = await this.organizationsService.findUsersInTree(orgId);
+        users.forEach(user => allUsersInScope.add(user._id.toString()));
+      }     
+
+      filter.userId = { $in: Array.from(allUsersInScope).map(id => new Types.ObjectId(id)) };
+      return this.leaveModel.find(filter).exec();
     }
 
-    // Sort
-    let sort: any = {};
-    switch (q.sort) {
-      case 'createdAsc': sort = { createdAt: 1 }; break;
-      case 'createdDesc': sort = { createdAt: -1 }; break;
-      case 'updatedAsc': sort = { updatedAt: 1 }; break;
-      case 'updatedDesc': sort = { updatedAt: -1 }; break;
-      case 'startAsc':
-        sort = { 'segments.fromDate': 1, 'segments.date': 1, 'segments.startAt': 1 };
-        break;
-      case 'startDesc':
-        sort = { 'segments.fromDate': -1, 'segments.date': -1, 'segments.startAt': -1 };
-        break;
-      default:
-        sort = { createdAt: -1 };
+    // 3. Kiểm tra quyền "viewOwner"
+    if (hasPermission('viewOwner')) {
+      // Chỉ có quyền viewOwner => chỉ get của chính mình
+      filter.userId = new Types.ObjectId(userId);
+      return this.leaveModel.find(filter).exec();
     }
 
-    const page = Math.max(1, Number(q.page ?? 1));
-    const limit = Math.min(100, Math.max(1, Number(q.limit ?? 20)));
+    // Nếu không có quyền nào thì trả về rỗng
+    return [];
+  }
 
-    const [items, total] = await Promise.all([
-      this.leaveModel
-        .find(filter)
-        .sort(sort)
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .lean(),
-      this.leaveModel.countDocuments(filter),
-    ]);
+  private async calculateTotalHours(segments: any[]): Promise<number> {
+    let totalHours = 0;
+    for (const seg of segments) {
+      let hours = 0;
+      if (seg.unit === LeaveUnit.DAY) {
+        // Tích hợp working calendar service nếu có
+        const from = this.atMidnight(new Date(seg.fromDate));
+        const to = this.atMidnight(new Date(seg.toDate));
+        let days: number;
 
-    return { items, total, page, limit };
+        if (this.calendar?.countBusinessDays) {
+          days = await this.calendar.countBusinessDays(from, to);
+        } else {
+          // Fallback: đếm ngày, loại trừ T7/CN
+          let cnt = 0;
+          for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+            const wd = d.getDay();
+            if (wd !== 0 && wd !== 6) cnt++;
+          }
+          days = cnt;
+        }
+        hours = days * WORKDAY_HOURS;
+      }
+      if (seg.unit === LeaveUnit.HALF_DAY) {
+        hours = seg.slot === 'AM' ? HALF_AM_HOURS : HALF_PM_HOURS;
+      }
+      if (seg.unit === LeaveUnit.HOUR) {
+        const start = new Date(seg.startAt);
+        const end = new Date(seg.endAt);
+        hours = (end.getTime() - start.getTime()) / (1000 * 60 * 60);
+      }
+      totalHours += hours;
+    }
+    return totalHours;
+  }
+
+  private atMidnight(d: Date): Date {
+    const midnight = new Date(d);
+    midnight.setHours(0, 0, 0, 0);
+    return midnight;
   }
 
   // =====================================================
@@ -396,7 +439,7 @@ export class LeaveService {
   // =====================================================
 
   /** Tính giờ cho từng segment theo policy; gán `hours` và trả mảng mới */
-  private async computeSegmentsHours<T extends { unit: LeaveUnit; [k: string]: any }>(
+  private async computeSegmentsHours<T extends { unit: LeaveUnit;[k: string]: any }>(
     segments: T[],
   ): Promise<(T & { hours: number })[]> {
     const out: (T & { hours: number })[] = [];
@@ -432,11 +475,6 @@ export class LeaveService {
         // Policy đơn giản: chênh lệch thô theo giờ
         const start = new Date(seg.startAt);
         const end = new Date(seg.endAt);
-
-        // (nâng cao) có thể clamp vào khung làm việc:
-        // const startClamp = max(start, dayTime(start, WORK_START_H, WORK_START_M));
-        // const endClamp = min(end, dayTime(end, WORK_END_H, WORK_END_M));
-        // hours = msToHours(+endClamp - +startClamp);
 
         hours = msToHours(+end - +start);
       }

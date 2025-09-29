@@ -54,33 +54,28 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Token refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or missing refresh token' })
   async refresh(@Request() req, @Res({ passthrough: true }) response: Response) {
-    const refreshTokenFromCookie = req.cookies?.refreshToken; // Lấy refresh token từ cookie
-    console.log('Refresh token from cookie:', refreshTokenFromCookie);
+    const refreshTokenFromCookie = req.cookies?.refreshToken;    
     if (!refreshTokenFromCookie) {
       throw new UnauthorizedException('Refresh token not found');
     }
 
     try {
-      // Xác thực refresh token
-      const decodedRefreshToken = await this.authService.validateRefreshToken(refreshTokenFromCookie);
-
-      // Nếu refresh token hợp lệ, tạo access token mới và refresh token mới (tùy chọn)
-      const result = await this.authService.refreshToken(decodedRefreshToken.sub, decodedRefreshToken.accountId); // decodedRefreshToken.sub là userId
-
+      
+      const decodedRefreshToken = await this.authService.validateRefreshToken(refreshTokenFromCookie);      
+      const result = await this.authService.refreshToken(decodedRefreshToken.sub, decodedRefreshToken.accountId); 
       // Cập nhật refresh token trong HttpOnly cookie (nếu có refresh token mới)
      response.cookie('accessToken', result.access_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        expires: new Date(Date.now() + 2 * 60 * 60 * 1000), // Cùng thời gian sống
-        path: '/',
+        expires: new Date(Date.now() + 2 * 60 * 60 * 1000), 
       }); 
 
       response.cookie('refreshToken', result.refresh_token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
-        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // Cùng thời gian sống
+        expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), 
         path: '/',
       });
 
@@ -93,7 +88,6 @@ export class AuthController {
     }
   }
 
-//  @UseGuards(JwtAuthGuard)
   @Post('logout')
   @ApiOperation({ summary: 'User logout' })
   @ApiResponse({ status: 200, description: 'Logout successful' })

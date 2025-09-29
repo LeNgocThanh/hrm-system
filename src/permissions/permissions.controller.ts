@@ -5,14 +5,19 @@ import { CreatePermissionDto, UpdatePermissionDto, PermissionResponseDto } from 
 import { Action } from './common/permission.constants';
 import { ParseEnumPipe } from '@nestjs/common';
 import { ApiBearerAuth } from '@nestjs/swagger';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('permissions')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
 
   @Post()
+  @RequirePermissions({
+  modules: { anyOf: ['All', 'User'] },
+  actions: { anyOf: ['manage'] },})
   create(@Body() createPermissionDto: CreatePermissionDto): Promise<PermissionResponseDto> {
     return this.permissionsService.create(createPermissionDto);
   }
@@ -43,11 +48,17 @@ export class PermissionsController {
   }
 
   @Put(':id')
+  @RequirePermissions({
+  modules: { anyOf: ['All', 'User'] },
+  actions: { anyOf: ['manage'] },})
   update(@Param('id') id: string, @Body() updatePermissionDto: UpdatePermissionDto): Promise<PermissionResponseDto> {
     return this.permissionsService.update(id, updatePermissionDto);
   }
 
   @Delete(':id')
+  @RequirePermissions({
+  modules: { anyOf: ['All', 'User'] },
+  actions: { anyOf: ['manage'] },})
   delete(@Param('id') id: string): Promise<PermissionResponseDto> {
     return this.permissionsService.delete(id);
   }

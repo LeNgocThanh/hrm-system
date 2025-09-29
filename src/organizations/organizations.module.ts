@@ -15,6 +15,7 @@ import { UserAssignment, UserAssignmentSchema } from 'src/user-assignments/schem
     UserAssignmentsModule,
   ],
   providers: [OrganizationsService],
-  controllers: [OrganizationsController]
+  controllers: [OrganizationsController],
+  exports: [OrganizationsService],
 })
 export class OrganizationsModule {}

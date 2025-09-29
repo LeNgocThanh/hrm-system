@@ -5,6 +5,9 @@ import { AssetsController } from './assets.controller';
 import { Asset, AssetSchema } from './schemas/asset.schema';
 import { AssetEvent, AssetEventSchema } from './schemas/asset-event.schema';
 import { AssetDocument as AssetDoc, AssetDocumentSchema } from './schemas/asset-document.schema';
+import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
+import { OrganizationsModule } from 'src/organizations/organizations.module';
+
 
 @Module({
   imports: [
@@ -13,6 +16,8 @@ import { AssetDocument as AssetDoc, AssetDocumentSchema } from './schemas/asset-
       { name: AssetEvent.name, schema: AssetEventSchema },
       { name: AssetDoc.name, schema: AssetDocumentSchema },
     ]),
+    UserAssignmentsModule,
+    OrganizationsModule,
   ],
   controllers: [AssetsController],
   providers: [AssetsService],

@@ -4,14 +4,19 @@ import { CreateOrganizationDto, UpdateOrganizationDto, OrganizationResponseDto }
 import { UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { PermissionsGuard } from '../auth/guards/permissions.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 
 @Controller('organizations')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
   @Post()
+  @RequirePermissions({
+    modules: { anyOf: ['All', 'User'] },
+    actions: { anyOf: ['manage'] },})
   create(@Body() createOrganizationDto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
     return this.organizationsService.create(createOrganizationDto);
   }
@@ -47,11 +52,17 @@ export class OrganizationsController {
   }
 
   @Put(':id')
+  @RequirePermissions({
+    modules: { anyOf: ['All', 'User'] },
+    actions: { anyOf: ['manage'] },})
   update(@Param('id') id: string, @Body() updateOrganizationDto: UpdateOrganizationDto): Promise<OrganizationResponseDto> {
     return this.organizationsService.update(id, updateOrganizationDto);
   }
 
   @Delete(':id')
+  @RequirePermissions({
+    modules: { anyOf: ['All', 'User'] },
+    actions: { anyOf: ['manage'] },})
   delete(@Param('id') id: string): Promise<OrganizationResponseDto> {
     return this.organizationsService.delete(id);
   }

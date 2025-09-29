@@ -6,6 +6,7 @@ import { QueryOvertimeDto } from './dto/query-overtime.dto';
 import { ReviewOvertimeDto } from './dto/review.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from 'src/auth/guards/permissions.guard';
+import { RequirePermissions } from 'src/auth/decorators/permissions.decorator';
 
 
 @Controller('overtime-requests')
@@ -25,6 +26,7 @@ export class OvertimeController {
   }
 
   @Patch(':id/review')
+   @RequirePermissions({ modules: { anyOf: ['OverTime', 'All'] }, actions: { anyOf: ['approve', 'manage'] } })
   review(@Param('id') id: string, @Body() dto: ReviewOvertimeDto, @Req() req: any) {
     const reviewerId = req.user.userId; // Lấy reviewerId từ user đăng nhập
     return this.service.review(id, dto, reviewerId);
@@ -36,7 +38,10 @@ export class OvertimeController {
   }
 
   @Get()
-  findMany(@Query() q: QueryOvertimeDto) {
-    return this.service.query(q);
+  @RequirePermissions({ modules: { anyOf: ['OverTime', 'All'] }, actions: { anyOf: ['read', 'viewOwner', 'manage'] } })
+  findMany(@Query() q: QueryOvertimeDto, @Req() req: any) {
+    const userId = req.user.userId;
+    const requirement = req.user.roles;
+    return this.service.query(q, userId, requirement);
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -25,6 +25,14 @@ export class UsersController {
   @Get()
   findAll(): Promise<UserResponseDto[]> {
     return this.usersService.findAll();
+  }
+
+  @RequirePermissions({ modules: { anyOf: ['User', 'All'] }, actions: { anyOf: ['read', 'viewOwner', 'manage'] } })
+  @Get('/by-organization')
+  findByOrganizations(@Req() req: any): Promise<UserResponseDto[]> {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.usersService.findByOrganization(userId, roles);
   }
   
   @RequirePermissions({

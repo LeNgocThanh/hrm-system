@@ -7,6 +7,9 @@ import { UpdateOvertimeDto } from './dto/update-overtime.dto';
 import { QueryOvertimeDto } from './dto/query-overtime.dto';
 import { ReviewOvertimeDto } from './dto/review.dto';
 import { OvertimeStatus, OvertimeKind, CompensationType } from './common/overTime.enum';
+import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
+import { OrganizationsService } from 'src/organizations/organizations.service';
+
 
 // (tuỳ dự án) hook timesheet
 export interface TimesheetService {
@@ -25,6 +28,9 @@ export class OvertimeService {
   constructor(
     @InjectModel(OvertimeRequest.name)
     private readonly model: Model<OvertimeRequestDocument>,
+    private readonly userAssignmentsService: UserAssignmentsService,
+    private readonly organizationsService: OrganizationsService,
+    // (tuỳ dự án) có thể bỏ @Optional() nếu chắc chắn inject
     @Optional() private readonly timesheet?: TimesheetService,
     @Optional() private readonly calendar?: WorkingCalendarService,
   ) {}
@@ -134,7 +140,7 @@ export class OvertimeService {
     return doc;
   }
 
-  async query(q: QueryOvertimeDto) {
+  async query(q: QueryOvertimeDto, userId: string, roles: any[]) {
     const filter: FilterQuery<OvertimeRequest> = {};
     if (q.userId) filter.userId = new Types.ObjectId(q.userId);
     if (q.reviewerId) filter.reviewerId = new Types.ObjectId(q.reviewerId);
@@ -171,12 +177,63 @@ export class OvertimeService {
     const page = Math.max(1, Number(q.page ?? 1));
     const limit = Math.min(100, Math.max(1, Number(q.limit ?? 20)));
 
-    const [items, total] = await Promise.all([
+    const moduleNames = ['All', 'OverTime'];
+
+    // Hàm tiện ích để kiểm tra quyền
+    const hasPermission = (action: string) => {
+      return roles.some(scope =>
+        moduleNames.some(moduleName =>
+          scope.groupedPermissions?.[moduleName]?.includes(action)
+        )
+      );
+    };
+
+    // 1. Kiểm tra quyền "manage"
+    if (hasPermission('manage')) {
+      // Có quyền manage => get tất cả
+      const [items, total] = await Promise.all([
       this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
       this.model.countDocuments(filter),
     ]);
 
     return { items, total, page, limit };
+    }
+
+    // 2. Kiểm tra quyền "read"
+    if (hasPermission('read')) {
+      // Có quyền read => get toàn bộ cây tổ chức
+      const userAssignments = await this.userAssignmentsService.findByUserId(userId);
+      const userOrgIds = userAssignments.map(a => a.organizationId._id.toString());
+
+
+      const allUsersInScope = new Set<string>();
+      for (const orgId of userOrgIds) {
+        const { users } = await this.organizationsService.findUsersInTree(orgId);
+        users.forEach(user => allUsersInScope.add(user._id.toString()));
+      }     
+
+      filter.userId = { $in: Array.from(allUsersInScope).map(id => new Types.ObjectId(id)) };
+      const [items, total] = await Promise.all([
+      this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
+      this.model.countDocuments(filter),
+    ]);
+      return { items, total, page, limit };
+    }
+
+    // 3. Kiểm tra quyền "viewOwner"
+    if (hasPermission('viewOwner')) {
+      // Chỉ có quyền viewOwner => chỉ get của chính mình
+      filter.userId = new Types.ObjectId(userId);
+     const [items, total] = await Promise.all([
+      this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
+      this.model.countDocuments(filter),
+    ]);
+
+    return { items, total, page, limit };
+    }
+
+    // Nếu không có quyền nào thì trả về rỗng
+    return [];    
   }
 
   // ============== PRIVATE ==============
