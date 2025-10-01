@@ -40,5 +40,30 @@ export class MeetingsCronService {
       }
       this.logger.log(`Auto-completed meetings (fallback): ${n}`);
     }
-  }
+  } 
+
+  @Cron('0 2 * * *', { timeZone: process.env.CRON_TZ || 'Asia/Bangkok' })
+  async autoRejectOverdue() {
+    const now = new Date();
+    const filter = { status: MeetingStatus.PENDING_APPROVAL, startAt: { $lte: now } };
+   
+    try {     
+      const res = await this.meetingModel.updateMany(filter, [
+        { $set: { status: MeetingStatus.REJECTED, finishedAt: now } },
+      ]).exec();
+      this.logger.log(`Auto-reject meetings: ${res?.modifiedCount ?? 0}`);
+    } catch (e) {     
+      const docs = await this.meetingModel.find(filter).select('_id').lean();
+      let n = 0;
+      for (const d of docs) {
+        await this.meetingModel.updateOne(
+          { _id: d._id },
+          { $set: { status: MeetingStatus.REJECTED, finishedAt: now } },
+        ).exec();
+        n++;
+      }
+      this.logger.log(`Auto-reject meetings (fallback): ${n}`);
+    }
+  } 
+
 }
