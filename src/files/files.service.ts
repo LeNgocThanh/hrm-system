@@ -10,6 +10,7 @@ export class FilesService {
     private readonly uploadFilesService: UploadFilesService,
   ) {}
   async getFileInfo(filePath: string) {
+    console.log('UPLOAD_DIR:', filePath);
     const files = await this.uploadFilesService.findByPath(filePath);
     if (!files || files.length === 0) {
       throw new NotFoundException('File metadata not found in database');

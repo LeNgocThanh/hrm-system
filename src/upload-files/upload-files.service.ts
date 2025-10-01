@@ -27,6 +27,7 @@ export class UploadFilesService {
   }
 
   async findByPath(path: string): Promise<UploadFile[]> {
+    console.log('Finding by path:', path);
     return this.fileModel.find({ path }).exec();
   }
 
