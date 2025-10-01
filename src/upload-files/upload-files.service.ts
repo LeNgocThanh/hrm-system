@@ -12,7 +12,7 @@ import * as crypto from 'crypto'; // Để tạo hash
 @Injectable()
 export class UploadFilesService {
   private readonly logger = new Logger(UploadFilesService.name);
-  private readonly UPLOAD_DIR = path.join(process.cwd(), 'uploads'); // Thư mục lưu trữ file
+  private readonly UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(process.cwd(), 'uploads'); // Thư mục lưu trữ file
 
   constructor(@InjectModel(UploadFile.name) private fileModel: Model<UploadFileDocument>) {
     // Đảm bảo thư mục uploads tồn tại
