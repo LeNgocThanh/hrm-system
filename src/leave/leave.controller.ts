@@ -16,12 +16,12 @@ export class LeaveController {
 
   @Post()
   create(@Body() dto: CreateLeaveDto) {   
-    return this.service.create(dto /*, actorId*/);
+    return this.service.create(dto);
   }
 
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateLeaveDto) {
-    return this.service.update(id, dto /*, actorId*/);
+    return this.service.update(id, dto);
   }
 
 

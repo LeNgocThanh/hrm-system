@@ -19,9 +19,7 @@ import { AvailabilityService } from './availability.service';
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MeetingsController {
   constructor(private readonly meetings: MeetingsService, private readonly availability: AvailabilityService) {}
-  
 
- 
   @RequirePermissions({
   modules: { anyOf: ['All', 'Meeting'] },
   actions: { anyOf: ['manage','create'] },})
@@ -51,7 +49,7 @@ export class MeetingsController {
     summary: 'Cập nhật cuộc họp',
     description:
       '- **Chưa duyệt**: sửa tự do.\n' +
-      '- **Đã duyệt, chưa bắt đầu**: sửa tự do (sau này gắn quyền cao hơn).\n' +
+      '- **Đã duyệt, chưa bắt đầu**: sửa tự do .\n' +
       '- **Đang diễn ra**: chỉ sửa `endAt` (không trùng meetings SCHEDULED khác cùng phòng).\n' +
       '- **Đã kết thúc**: chỉ sửa `note`.',
   })

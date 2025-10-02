@@ -53,7 +53,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   @ApiResponse({ status: 200, description: 'Token refreshed' })
   @ApiResponse({ status: 401, description: 'Invalid or missing refresh token' })
-  async refresh(@Request() req, @Res({ passthrough: true }) response: Response) {
+  async refresh(@Request() req: any, @Res({ passthrough: true }) response: Response) {
     const refreshTokenFromCookie = req.cookies?.refreshToken;    
     if (!refreshTokenFromCookie) {
       throw new UnauthorizedException('Refresh token not found');
@@ -69,6 +69,7 @@ export class AuthController {
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'lax',
         expires: new Date(Date.now() + 2 * 60 * 60 * 1000), 
+        path: '/', 
       }); 
 
       response.cookie('refreshToken', result.refresh_token, {
@@ -114,7 +115,7 @@ export class AuthController {
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get current user profile' })
   @ApiResponse({ status: 200, description: 'User profile retrieved' })
-  getProfile(@Request() req) {
+  getProfile(@Request() req: any) {
     return req.user;
   }
 }
