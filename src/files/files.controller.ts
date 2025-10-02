@@ -14,8 +14,7 @@ export class FilesController {
 
   @Get('download')
   async downloadFile(@Query('path') filePath: string, @Res() res: Response) {
-    if (!filePath) throw new BadRequestException('Missing file path');
-    console.log('Download request for path:', filePath);
+    if (!filePath) throw new BadRequestException('Missing file path');  
     const fileInfo = await this.filesService.getFileInfo(filePath);
     const fileBuffer = await this.filesService.downloadFile(filePath);
     res.set({

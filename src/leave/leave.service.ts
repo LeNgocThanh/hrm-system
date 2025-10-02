@@ -207,15 +207,45 @@ export class LeaveService {
   }
 
   async query(q: QueryLeaveDto, userId: string, roles: any[]): Promise<LeaveRequest[]> {
-    const filter: FilterQuery<LeaveRequestDocument> = {};  
+    const filter: FilterQuery<LeaveRequestDocument> = {};
     if (q.userId) filter.userId = new Types.ObjectId(q.userId);
     if (q.leaveType) filter.leaveType = q.leaveType;
-    if (q.status) filter.status = q.status; 
+    if (q.status) filter.status = q.status;
     if (q.from || q.to) {
-      filter.segments = { $elemMatch: {} };
-      if (q.from) filter.segments.$elemMatch.toDate = { $gte: atMidnight(new Date(q.from)) };
-      if (q.to) filter.segments.$elemMatch.fromDate = { $lte: atMidnight(new Date(q.to)) };
+      const fromDate = q.from ? atMidnight(new Date(q.from)) : undefined;
+      const toDate = q.to ? atMidnight(new Date(q.to)) : undefined;
+
+      filter.segments = {
+        $elemMatch: {
+          $or: [
+            // FULL_DAY
+            {
+              unit: "DAY",
+              ...(fromDate ? { toDate: { $gte: new Date(q.from) } } : {}),
+              ...(toDate ? { fromDate: { $lte: new Date(q.to) } } : {}),
+            },
+            // HALF_DAY
+            {
+              unit: "HALF_DAY",
+              ...(fromDate && toDate
+                ? { date: { $gte: fromDate, $lte: toDate } }
+                : fromDate
+                  ? { date: { $gte: fromDate } }
+                  : toDate
+                    ? { date: { $lte: toDate } }
+                    : {}),
+            },
+            // HOUR
+            {
+              unit: "HOUR",
+              ...(fromDate ? { endAt: { $gt: fromDate } } : {}),
+              ...(toDate ? { startAt: { $lt: toDate } } : {}),
+            },
+          ],
+        },
+      };
     }
+
     if (q.q) {
       filter.reason = { $regex: q.q, $options: 'i' };
     }
@@ -252,7 +282,7 @@ export class LeaveService {
       for (const orgId of userOrgIds) {
         const { users } = await this.organizationsService.findUsersInTree(orgId);
         users.forEach(user => allUsersInScope.add(user._id.toString()));
-      }     
+      }
 
       filter.userId = { $in: Array.from(allUsersInScope).map(id => new Types.ObjectId(id)) };
       return this.leaveModel.find(filter).exec();

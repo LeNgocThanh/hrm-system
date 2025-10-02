@@ -9,8 +9,7 @@ export class FilesService {
     @Inject(forwardRef(() => UploadFilesService))
     private readonly uploadFilesService: UploadFilesService,
   ) {}
-  async getFileInfo(filePath: string) {
-    console.log('UPLOAD_DIR:', filePath);
+  async getFileInfo(filePath: string) {   
     const files = await this.uploadFilesService.findByPath(filePath);
     if (!files || files.length === 0) {
       throw new NotFoundException('File metadata not found in database');
