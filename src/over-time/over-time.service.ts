@@ -44,17 +44,7 @@ export class OvertimeService {
     const userId = new Types.ObjectId(dto.userId);
     this.validateSegmentsOrThrow(dto.segments);
 
-    await this.assertNoExternalOverlap(userId, dto.segments);
-    //   for (const seg of dto.segments) {
-    //   const conflict = await this.userTimeEntriesService.checkConflict({
-    //     userId: dto.userId,
-    //     startAt: seg.startAt,
-    //     endAt: seg.endAt,
-    //   });
-    //   if (conflict) {
-    //     throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
-    //   }
-    // }
+    await this.assertNoExternalOverlap(userId, dto.segments);    
     const segs = await this.computeSegments(dto.segments);
     const totalHours = segs.reduce((s, x: any) => s + (x.hours || 0), 0);
 
@@ -68,17 +58,7 @@ export class OvertimeService {
       attachmentIds: (dto.attachmentIds || []).map((id) => new Types.ObjectId(id)),
       createdBy: actorId ? new Types.ObjectId(actorId) : undefined,
       updatedBy: actorId ? new Types.ObjectId(actorId) : undefined,
-    });
-
-    //   for (const seg of doc.segments) {
-    //   await this.userTimeEntriesService.create({
-    //     userId: doc.userId.toString(),
-    //     type: TimeEntryType.OVERTIME,
-    //     startAt: seg.startAt,
-    //     endAt: seg.endAt,
-    //     refId: doc._id.toString(),
-    //   });
-    // }
+    });    
 
     return doc;
   }
@@ -141,7 +121,7 @@ export class OvertimeService {
           endAt: seg.endAt,
         });
         if (conflict) {
-          throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
+          throw new ConflictException(`Tăng ca bị trùng với nghỉ phép hoặc chấm công tại ${seg.startAt} - ${seg.endAt}`);
         }
       }
     }
@@ -149,7 +129,7 @@ export class OvertimeService {
     if (action === 'cancel') {
       for (const seg of doc.segments) {
         const now = new Date();
-        if (seg.startAt >= now) {
+        if (seg.startAt <= now) {
           throw new BadRequestException('Chỉ huỷ được đơn tăng ca trong tương lai');
         }
         doc.status = OvertimeStatus.Cancelled;

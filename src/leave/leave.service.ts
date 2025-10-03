@@ -20,9 +20,6 @@ import { UserAssignmentsService } from 'src/user-assignments/user-assignments.se
 import { OrganizationsService } from 'src/organizations/organizations.service';
 import { UserTimeEntriesService } from 'src/user-time-entries/user-time-entries.service';
 
-
-
-// (tuỳ dự án) Bạn có thể hiện thực các service dưới hoặc bỏ @Optional() để khỏi inject.
 export interface WorkingCalendarService {
   // Đếm số "ngày làm việc" giữa 2 mốc (bao gồm đầu/cuối nếu là ngày làm việc)
   countBusinessDays(fromDate: Date, toDate: Date): Promise<number>;
@@ -55,13 +52,18 @@ function endOfDay(d: Date): Date {
   x.setHours(23, 59, 59, 999);
   return x;
 }
+function at12PM(d: Date): Date {
+  const x = new Date(d);
+  x.setHours(12, 0, 0, 0);
+  return x;
+}
 function sameDay(a: Date, b: Date): boolean {
   return atMidnight(a).getTime() === atMidnight(b).getTime();
 }
 function msToHours(ms: number): number {
   return Math.max(0, ms) / 3_600_000;
 }
-/** Tạo mốc giờ làm việc (nếu muốn clamp) */
+/** Tạo mốc giờ làm việc */
 function dayTime(date: Date, h: number, m = 0): Date {
   const d = new Date(date);
   d.setHours(h, m, 0, 0);
@@ -142,8 +144,7 @@ export class LeaveService {
       const segs = await this.computeSegmentsHours(dto.segments);
       leave.segments = segs as any;
       leave.totalHours = segs.reduce((s, x) => s + (x.hours || 0), 0);
-    }
-    //if (actorId) leave. = new Types.ObjectId(actorId);
+    }  
 
     return leave.save();
   }
@@ -153,6 +154,7 @@ export class LeaveService {
   // =========================
   async review(id: string, dto, reviewerId: string) {
     const leave = await this.leaveModel.findById(id);
+    console.log('Review leave', id, ' by ', reviewerId, ' action=', dto.action, 'data=', leave);
     if (!leave) throw new NotFoundException('Không tìm thấy đơn nghỉ');
 
     // Kiểm tra trạng thái hợp lệ theo action
@@ -173,13 +175,26 @@ export class LeaveService {
 
     if (dto.action === 'approve') {
       for (const seg of leave.segments) {
+        let startD: Date, endD: Date;
+        if (seg.unit === LeaveUnit.DAY) {
+          startD = atMidnight(new Date(seg.fromDate));
+          endD = endOfDay(new Date(seg.toDate));
+        }
+        if (seg.unit === LeaveUnit.HALF_DAY) {
+          startD = seg.slot === 'AM' ? atMidnight(new Date(seg.date)) : at12PM(new Date(seg.date));
+          endD = seg.slot === 'AM' ? at12PM(new Date(seg.date)) : endOfDay(new Date(seg.date));
+        }
+        if (seg.unit === LeaveUnit.HOUR) {
+          startD = new Date(seg.startAt);
+          endD = new Date(seg.endAt);
+        }
         const conflict = await this.userTimeEntriesService.checkConflict({
           userId: leave.userId.toString(),
-          startAt: seg.startAt,
-          endAt: seg.endAt,
-        });
+          startAt: startD,
+          endAt: endD,
+        });   
         if (conflict) {
-          throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
+          throw new ConflictException(`Nghỉ phép bị trùng với tăng ca hoặc chấm công tại ${seg.startAt} - ${seg.endAt}`);
         }
       }
       leave.status = 'approved' as any;
@@ -187,8 +202,21 @@ export class LeaveService {
     if (dto.action === 'reject') leave.status = 'rejected' as any;
     if (dto.action === 'cancel') {
       for (const seg of leave.segments) {
-        const now = new Date();
-        if (seg.startAt >= now) {
+        let startD: Date, endD: Date;     
+        if (seg.unit === LeaveUnit.DAY) {
+          startD = atMidnight(new Date(seg.fromDate));
+          endD = endOfDay(new Date(seg.toDate));
+        }
+        if (seg.unit === LeaveUnit.HALF_DAY) {
+          startD = seg.slot === 'AM' ? atMidnight(new Date(seg.date)) : at12PM(new Date(seg.date));
+          endD = seg.slot === 'AM' ? at12PM(new Date(seg.date)) : endOfDay(new Date(seg.date));
+        }
+        if (seg.unit === LeaveUnit.HOUR) {
+          startD = new Date(seg.startAt);
+          endD = new Date(seg.endAt);
+        }
+        const now = new Date();      
+        if (startD <= now) {
           throw new BadRequestException('Chỉ huỷ được đơn tăng ca trong tương lai');
         }
         leave.status = 'cancelled' as any;
@@ -199,24 +227,52 @@ export class LeaveService {
 
     if (dto.action === 'approve') {
       for (const seg of leave.segments) {
+        let startD: Date, endD: Date;
+        if (seg.unit === LeaveUnit.DAY) {
+          startD = atMidnight(new Date(seg.fromDate));
+          endD = endOfDay(new Date(seg.toDate));
+        }
+        if (seg.unit === LeaveUnit.HALF_DAY) {
+          startD = seg.slot === 'AM' ? atMidnight(new Date(seg.date)) : at12PM(new Date(seg.date));
+          endD = seg.slot === 'AM' ? at12PM(new Date(seg.date)) : endOfDay(new Date(seg.date));
+        }
+        if (seg.unit === LeaveUnit.HOUR) {
+          startD = new Date(seg.startAt);
+          endD = new Date(seg.endAt);
+        }
         await this.userTimeEntriesService.create({
           userId: leave.userId.toString(),
-          type: TimeEntryType.OVERTIME,
-          startAt: seg.startAt,
-          endAt: seg.endAt,
+          type: TimeEntryType.LEAVE,
+          startAt: startD,
+          endAt: endD,
           refId: leave._id.toString(),
         });
+       // console.log('Created usertime entry for leave', leave._id.toString());
       }
     }
     if (dto.action === 'cancel' && saved.status === 'cancelled') {
       for (const seg of leave.segments) {
-        await this.userTimeEntriesService.removeByRefId({
+        let startD: Date, endD: Date;
+        if (seg.unit === LeaveUnit.DAY) {
+          startD = atMidnight(new Date(seg.fromDate));
+          endD = endOfDay(new Date(seg.toDate));
+        }
+        if (seg.unit === LeaveUnit.HALF_DAY) {
+          startD = seg.slot === 'AM' ? atMidnight(new Date(seg.date)) : at12PM(new Date(seg.date));
+          endD = seg.slot === 'AM' ? at12PM(new Date(seg.date)) : endOfDay(new Date(seg.date));
+        }
+        if (seg.unit === LeaveUnit.HOUR) {
+          startD = new Date(seg.startAt);
+          endD = new Date(seg.endAt);
+        }
+        const isdelete = await this.userTimeEntriesService.removeByRefId({
           userId: leave.userId.toString(),
-          type: TimeEntryType.OVERTIME,
-          startAt: seg.startAt,
-          endAt: seg.endAt,
+          type: TimeEntryType.LEAVE,
+          startAt: startD,
+          endAt: endD,
           refId: leave._id.toString(),
         });
+        //console.log('Deleted usertime entry for leave', leave._id.toString(), ' : ', isdelete);
       }
     }
     // Hook timesheet (nếu có)
