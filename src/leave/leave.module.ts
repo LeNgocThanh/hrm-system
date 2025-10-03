@@ -6,6 +6,7 @@ import { LeaveService } from './leave.service';
 import { LeaveRequest, LeaveRequestSchema } from './schemas/leave-request.schema';
 import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
 import { OrganizationsModule } from 'src/organizations/organizations.module';
+import { UserTimeEntriesModule } from 'src/user-time-entries/user-time-entries.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { OrganizationsModule } from 'src/organizations/organizations.module';
     ]),
     UserAssignmentsModule,
     OrganizationsModule,
+    UserTimeEntriesModule,
   ],
   controllers: [LeaveController],
   providers: [LeaveService],

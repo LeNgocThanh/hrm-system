@@ -8,5 +8,11 @@ export enum LeaveType {
   OTHER = 'OTHER',
 }
 
+export enum TimeEntryType {
+  LEAVE = 'LEAVE',
+  OVERTIME = 'OVERTIME',
+  ATTENDANCE = 'ATTENDANCE',
+}
+
 export enum LeaveUnit { DAY='DAY', HALF_DAY='HALF_DAY', HOUR='HOUR' }
 

@@ -1,14 +1,17 @@
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { FilterQuery, Model, Types } from 'mongoose';
+import { FilterQuery, Model, now, Types } from 'mongoose';
 import { OvertimeRequest, OvertimeRequestDocument } from './schemas/overtime-request.schema';
 import { CreateOvertimeDto } from './dto/create-overtime.dto';
 import { UpdateOvertimeDto } from './dto/update-overtime.dto';
-import { QueryOvertimeDto } from './dto/query-overtime.dto';
+import { QueryOvertimeDto, CheckConflictDto } from './dto/query-overtime.dto';
 import { ReviewOvertimeDto } from './dto/review.dto';
 import { OvertimeStatus, OvertimeKind, CompensationType } from './common/overTime.enum';
 import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
 import { OrganizationsService } from 'src/organizations/organizations.service';
+import { UserTimeEntriesService } from 'src/user-time-entries/user-time-entries.service';
+import { TimeEntryType } from '../user-time-entries/schemas/user-time-entries.schema';
+
 
 
 // (tuỳ dự án) hook timesheet
@@ -30,10 +33,11 @@ export class OvertimeService {
     private readonly model: Model<OvertimeRequestDocument>,
     private readonly userAssignmentsService: UserAssignmentsService,
     private readonly organizationsService: OrganizationsService,
+    private readonly userTimeEntriesService: UserTimeEntriesService,
     // (tuỳ dự án) có thể bỏ @Optional() nếu chắc chắn inject
     @Optional() private readonly timesheet?: TimesheetService,
     @Optional() private readonly calendar?: WorkingCalendarService,
-  ) {}
+  ) { }
 
   // ============== CREATE ==============
   async create(dto: CreateOvertimeDto, actorId?: string) {
@@ -41,7 +45,16 @@ export class OvertimeService {
     this.validateSegmentsOrThrow(dto.segments);
 
     await this.assertNoExternalOverlap(userId, dto.segments);
-
+    //   for (const seg of dto.segments) {
+    //   const conflict = await this.userTimeEntriesService.checkConflict({
+    //     userId: dto.userId,
+    //     startAt: seg.startAt,
+    //     endAt: seg.endAt,
+    //   });
+    //   if (conflict) {
+    //     throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
+    //   }
+    // }
     const segs = await this.computeSegments(dto.segments);
     const totalHours = segs.reduce((s, x: any) => s + (x.hours || 0), 0);
 
@@ -56,6 +69,16 @@ export class OvertimeService {
       createdBy: actorId ? new Types.ObjectId(actorId) : undefined,
       updatedBy: actorId ? new Types.ObjectId(actorId) : undefined,
     });
+
+    //   for (const seg of doc.segments) {
+    //   await this.userTimeEntriesService.create({
+    //     userId: doc.userId.toString(),
+    //     type: TimeEntryType.OVERTIME,
+    //     startAt: seg.startAt,
+    //     endAt: seg.endAt,
+    //     refId: doc._id.toString(),
+    //   });
+    // }
 
     return doc;
   }
@@ -109,17 +132,58 @@ export class OvertimeService {
     doc.reviewedAt = new Date();
     doc.reviewNote = note ?? doc.reviewNote;
 
-    if (action === 'approve') doc.status = OvertimeStatus.Approved;
+    if (action === 'approve') {
+      doc.status = OvertimeStatus.Approved;
+      for (const seg of doc.segments) {
+        const conflict = await this.userTimeEntriesService.checkConflict({
+          userId: doc.userId.toString(),
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+        });
+        if (conflict) {
+          throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
+        }
+      }
+    }
     if (action === 'reject') doc.status = OvertimeStatus.Rejected;
-    if (action === 'cancel') doc.status = OvertimeStatus.Cancelled;
-
+    if (action === 'cancel') {
+      for (const seg of doc.segments) {
+        const now = new Date();
+        if (seg.startAt >= now) {
+          throw new BadRequestException('Chỉ huỷ được đơn tăng ca trong tương lai');
+        }
+        doc.status = OvertimeStatus.Cancelled;
+      }
+    }
     const saved = await doc.save();
+    if (action === 'approve') {
+      for (const seg of doc.segments) {
+        await this.userTimeEntriesService.create({
+          userId: doc.userId.toString(),
+          type: TimeEntryType.OVERTIME,
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          refId: doc._id.toString(),
+        });
+      }
+    }
+    if (action === 'cancel' && saved.status === OvertimeStatus.Cancelled) {
+      for (const seg of doc.segments) {
+        await this.userTimeEntriesService.removeByRefId({
+          userId: doc.userId.toString(),
+          type: TimeEntryType.OVERTIME,
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          refId: doc._id.toString(),
+        });
+      }
+    }
 
     // Timesheet hook
     try {
       if (this.timesheet) {
-        if (action === 'approve')      await this.timesheet.applyOvertimeSegments(saved);
-        else if (action === 'cancel')  await this.timesheet.revertOvertimeByRequest(saved._id);
+        if (action === 'approve') await this.timesheet.applyOvertimeSegments(saved);
+        else if (action === 'cancel') await this.timesheet.revertOvertimeByRequest(saved._id);
       }
     } catch {
       // log nếu cần
@@ -165,13 +229,13 @@ export class OvertimeService {
 
     let sort: any = {};
     switch (q.sort) {
-      case 'createdAsc':  sort = { createdAt: 1 }; break;
+      case 'createdAsc': sort = { createdAt: 1 }; break;
       case 'createdDesc': sort = { createdAt: -1 }; break;
-      case 'updatedAsc':  sort = { updatedAt: 1 }; break;
+      case 'updatedAsc': sort = { updatedAt: 1 }; break;
       case 'updatedDesc': sort = { updatedAt: -1 }; break;
-      case 'startAsc':    sort = { 'segments.startAt': 1 }; break;
-      case 'startDesc':   sort = { 'segments.startAt': -1 }; break;
-      default:            sort = { createdAt: -1 };
+      case 'startAsc': sort = { 'segments.startAt': 1 }; break;
+      case 'startDesc': sort = { 'segments.startAt': -1 }; break;
+      default: sort = { createdAt: -1 };
     }
 
     const page = Math.max(1, Number(q.page ?? 1));
@@ -192,11 +256,11 @@ export class OvertimeService {
     if (hasPermission('manage')) {
       // Có quyền manage => get tất cả
       const [items, total] = await Promise.all([
-      this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
-      this.model.countDocuments(filter),
-    ]);
+        this.model.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
+        this.model.countDocuments(filter),
+      ]);
 
-    return { items, total, page, limit };
+      return { items, total, page, limit };
     }
 
     // 2. Kiểm tra quyền "read"
@@ -210,13 +274,13 @@ export class OvertimeService {
       for (const orgId of userOrgIds) {
         const { users } = await this.organizationsService.findUsersInTree(orgId);
         users.forEach(user => allUsersInScope.add(user._id.toString()));
-      }     
+      }
 
       filter.userId = { $in: Array.from(allUsersInScope).map(id => new Types.ObjectId(id)) };
       const [items, total] = await Promise.all([
-      this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
-      this.model.countDocuments(filter),
-    ]);
+        this.model.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
+        this.model.countDocuments(filter),
+      ]);
       return { items, total, page, limit };
     }
 
@@ -224,21 +288,21 @@ export class OvertimeService {
     if (hasPermission('viewOwner')) {
       // Chỉ có quyền viewOwner => chỉ get của chính mình
       filter.userId = new Types.ObjectId(userId);
-     const [items, total] = await Promise.all([
-      this.model.find(filter).sort(sort).skip((page-1)*limit).limit(limit).lean(),
-      this.model.countDocuments(filter),
-    ]);
+      const [items, total] = await Promise.all([
+        this.model.find(filter).sort(sort).skip((page - 1) * limit).limit(limit).lean(),
+        this.model.countDocuments(filter),
+      ]);
 
-    return { items, total, page, limit };
+      return { items, total, page, limit };
     }
 
     // Nếu không có quyền nào thì trả về rỗng
-    return [];    
+    return [];
   }
 
   // ============== PRIVATE ==============
 
-  private validateSegmentsOrThrow(segments: Array<{startAt: any; endAt: any;}>) {
+  private validateSegmentsOrThrow(segments: Array<{ startAt: any; endAt: any; }>) {
     if (!Array.isArray(segments) || segments.length === 0) {
       throw new BadRequestException('segments là mảng và không rỗng');
     }
@@ -253,9 +317,9 @@ export class OvertimeService {
     // chống chồng lấn nội bộ
     const ivs = segments
       .map(s => ({ start: +new Date(s.startAt), end: +new Date(s.endAt) }))
-      .sort((x,y)=>x.start - y.start);
+      .sort((x, y) => x.start - y.start);
     for (let i = 0; i < ivs.length - 1; i++) {
-      if (ivs[i+1].start < ivs[i].end) {
+      if (ivs[i + 1].start < ivs[i].end) {
         throw new BadRequestException('Các khoảng tăng ca bị chồng lấn trong cùng đơn');
       }
     }
@@ -263,18 +327,18 @@ export class OvertimeService {
 
   private async assertNoExternalOverlap(
     userId: Types.ObjectId,
-    segments: Array<{startAt: any; endAt: any;}>,
+    segments: Array<{ startAt: any; endAt: any; }>,
     excludeId?: Types.ObjectId,
   ) {
     const minStart = new Date(Math.min(...segments.map(s => +new Date(s.startAt))));
-    const maxEnd   = new Date(Math.max(...segments.map(s => +new Date(s.endAt))));
+    const maxEnd = new Date(Math.max(...segments.map(s => +new Date(s.endAt))));
 
     const q: FilterQuery<OvertimeRequest> = {
       userId,
       status: { $in: [OvertimeStatus.Pending, OvertimeStatus.Approved] as any },
       ...(excludeId ? { _id: { $ne: excludeId } } : {}),
       $or: [{
-        'segments.endAt':   { $gte: minStart },
+        'segments.endAt': { $gte: minStart },
         'segments.startAt': { $lte: maxEnd },
       }],
     };

@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
   Optional,
+  ConflictException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
@@ -13,10 +14,11 @@ import { CreateLeaveDto } from './dto/create-leave.dto';
 import { UpdateLeaveDto } from './dto/update-leave.dto';
 import { QueryLeaveDto } from './dto/query-leave.dto';
 
-import { LeaveType, LeaveUnit } from './common/leave-type.enum';
+import { LeaveType, LeaveUnit, TimeEntryType } from './common/leave-type.enum';
 
 import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
 import { OrganizationsService } from 'src/organizations/organizations.service';
+import { UserTimeEntriesService } from 'src/user-time-entries/user-time-entries.service';
 
 
 
@@ -73,6 +75,7 @@ export class LeaveService {
     private readonly leaveModel: Model<LeaveRequestDocument>,
     private readonly userAssignmentsService: UserAssignmentsService,
     private readonly organizationsService: OrganizationsService,
+    private readonly userTimeEntriesService: UserTimeEntriesService,
 
     @Optional() private readonly calendar?: WorkingCalendarService,
     @Optional() private readonly timesheet?: TimesheetService,
@@ -168,12 +171,54 @@ export class LeaveService {
     leave.reviewedAt = new Date();
     leave.reviewNote = dto.note ?? leave.reviewNote;
 
-    if (dto.action === 'approve') leave.status = 'approved' as any;
+    if (dto.action === 'approve') {
+      for (const seg of leave.segments) {
+        const conflict = await this.userTimeEntriesService.checkConflict({
+          userId: leave.userId.toString(),
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+        });
+        if (conflict) {
+          throw new ConflictException(`Overtime conflict at segment ${seg.startAt} - ${seg.endAt}`);
+        }
+      }
+      leave.status = 'approved' as any;
+    }
     if (dto.action === 'reject') leave.status = 'rejected' as any;
-    if (dto.action === 'cancel') leave.status = 'cancelled' as any;
+    if (dto.action === 'cancel') {
+      for (const seg of leave.segments) {
+        const now = new Date();
+        if (seg.startAt >= now) {
+          throw new BadRequestException('Chỉ huỷ được đơn tăng ca trong tương lai');
+        }
+        leave.status = 'cancelled' as any;
+      }
+    }
 
     const saved = await leave.save();
 
+    if (dto.action === 'approve') {
+      for (const seg of leave.segments) {
+        await this.userTimeEntriesService.create({
+          userId: leave.userId.toString(),
+          type: TimeEntryType.OVERTIME,
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          refId: leave._id.toString(),
+        });
+      }
+    }
+    if (dto.action === 'cancel' && saved.status === 'cancelled') {
+      for (const seg of leave.segments) {
+        await this.userTimeEntriesService.removeByRefId({
+          userId: leave.userId.toString(),
+          type: TimeEntryType.OVERTIME,
+          startAt: seg.startAt,
+          endAt: seg.endAt,
+          refId: leave._id.toString(),
+        });
+      }
+    }
     // Hook timesheet (nếu có)
     try {
       if (this.timesheet) {

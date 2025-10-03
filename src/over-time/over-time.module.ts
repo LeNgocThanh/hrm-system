@@ -5,6 +5,7 @@ import { OvertimeService } from './over-time.service';
 import { OvertimeRequest, OvertimeRequestSchema } from './schemas/overtime-request.schema';
 import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
 import { OrganizationsModule } from 'src/organizations/organizations.module';
+import { UserTimeEntriesModule } from 'src/user-time-entries/user-time-entries.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { OrganizationsModule } from 'src/organizations/organizations.module';
     ]),
     UserAssignmentsModule,
     OrganizationsModule,
+    UserTimeEntriesModule,
   ],
   controllers: [OvertimeController],
   providers: [OvertimeService],

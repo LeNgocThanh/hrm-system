@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsIn, IsMongoId, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import { IsDate, IsEnum, IsIn, IsMongoId, IsNumber, IsOptional, IsString, Min, IsNotEmpty, IsDateString } from 'class-validator';
 import { CompensationType, OvertimeKind } from '../common/overTime.enum';
 
 export class QueryOvertimeDto {
@@ -38,4 +38,17 @@ export class QueryOvertimeDto {
 
   @IsOptional() @IsString()
   sort?: 'startAsc'|'startDesc'|'createdDesc'|'createdAsc'|'updatedDesc'|'updatedAsc';
+}
+
+export class CheckConflictDto {
+  @IsNotEmpty()
+  userId: string;
+
+  @IsDateString()
+  startAt: Date;
+
+  @IsDateString()
+  endAt: Date;
+
+  refId?: string; // khi update thì truyền vào để loại trừ chính nó
 }
