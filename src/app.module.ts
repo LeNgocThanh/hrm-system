@@ -22,6 +22,7 @@ import { NoticesModule } from './notices/notices.module';
 import { LeaveModule } from './leave/leave.module';
 import { OverTimeModule } from './over-time/over-time.module';
 import { UserTimeEntriesModule } from './user-time-entries/user-time-entries.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 
 @Module({
@@ -51,7 +52,8 @@ import { UserTimeEntriesModule } from './user-time-entries/user-time-entries.mod
     NoticesModule,
     LeaveModule,
     OverTimeModule,
-    UserTimeEntriesModule, 
+    UserTimeEntriesModule,
+    AttendanceModule, 
   ]
 })
 export class AppModule {}

@@ -37,9 +37,9 @@ const WORKDAY_HOURS = 8;
 const HALF_AM_HOURS = 4;
 const HALF_PM_HOURS = 4;
 
-// Giờ làm việc (tham khảo) — nếu cần clamp giờ nghỉ theo khung làm việc thì dùng các hằng này.
-const WORK_START_H = 9, WORK_START_M = 0;
-const WORK_END_H = 18, WORK_END_M = 0;
+// Giờ làm việc — nếu cần khung làm việc thì dùng các hằng này.
+const WORK_START_H = 8, WORK_START_M = 30;
+const WORK_END_H = 17, WORK_END_M = 30;
 
 /** Tiện ích ngày */
 function atMidnight(d: Date): Date {
@@ -91,7 +91,7 @@ export class LeaveService {
   async create(dto: CreateLeaveDto, actorId?: string) {
     const userId = new Types.ObjectId(dto.userId);
 
-    // 1) Validate nội bộ segments (đủ trường theo unit, end>=start, không overlap nội bộ)
+    // 1) Validate nội bộ segments 
     this.validateSegmentsOrThrow(dto.segments);
 
     // 2) Chống overlap với đơn khác (pending/approved) của user
@@ -246,8 +246,7 @@ export class LeaveService {
           startAt: startD,
           endAt: endD,
           refId: leave._id.toString(),
-        });
-       // console.log('Created usertime entry for leave', leave._id.toString());
+        });       
       }
     }
     if (dto.action === 'cancel' && saved.status === 'cancelled') {
@@ -271,8 +270,7 @@ export class LeaveService {
           startAt: startD,
           endAt: endD,
           refId: leave._id.toString(),
-        });
-        //console.log('Deleted usertime entry for leave', leave._id.toString(), ' : ', isdelete);
+        });      
       }
     }
     // Hook timesheet (nếu có)
@@ -395,7 +393,6 @@ export class LeaveService {
       filter.userId = new Types.ObjectId(userId);
       return this.leaveModel.find(filter).exec();
     }
-
     // Nếu không có quyền nào thì trả về rỗng
     return [];
   }
