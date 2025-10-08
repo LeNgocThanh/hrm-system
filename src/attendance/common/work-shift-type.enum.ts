@@ -15,4 +15,9 @@ export const SHIFT_CONFIG = {
     end: '06:00',
     breakMinutes: 0,
   },
+  [WorkShiftType.MORNING]: {
+    start: '06:00',
+    end: '14:00',
+    breakMinutes: 0,
+  },
 };

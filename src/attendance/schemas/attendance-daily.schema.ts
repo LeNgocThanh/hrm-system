@@ -9,7 +9,7 @@ export class AttendanceDaily extends Document {
   userId: string;
 
   @Prop({ required: true })
-  date: string; // YYYY-MM-DD
+  workDate: string; // YYYY-MM-DD
 
   @Prop()
   checkIn?: Date;
@@ -30,7 +30,8 @@ export class AttendanceDaily extends Document {
   earlyLeaveMinutes: number;
 
   @Prop({ enum: AttendanceStatus, default: AttendanceStatus.PRESENT })
-  status: AttendanceStatus;
+  status?: AttendanceStatus;
 }
 
 export const AttendanceDailySchema = SchemaFactory.createForClass(AttendanceDaily);
+AttendanceDailySchema.index({ userId: 1, workDate: 1 }, { unique: true });

@@ -64,4 +64,55 @@ export class LogsService {
 
   return this.logModel.insertMany(docs);
 }
+async bulkCreateFromBody(items: Array<{ userId: string; timestamp: string }>) {
+    const cleaned: Array<Partial<AttendanceLog>> = [];
+    const invalidIdx: number[] = [];
+    const seen = new Set<string>();
+
+    items.forEach((it, idx) => {
+      const userId = String(it?.userId ?? '').trim();
+      const ts = new Date(it?.timestamp as any);
+      if (!userId || isNaN(ts.getTime())) {
+        invalidIdx.push(idx);
+        return;
+      }
+      const key = `${userId}|${ts.toISOString()}`;
+      if (seen.has(key)) return; // trùng trong payload
+      seen.add(key);
+
+      cleaned.push({
+        userId,
+        timestamp: ts,
+        // nếu schema có 'source' => để mặc định 'manual'/'import' tuỳ bạn
+        source: 'import',
+      } as any);
+    });
+
+    if (cleaned.length === 0) {
+      return {
+        inserted: 0,
+        invalid: invalidIdx.length,
+        duplicatesInPayload: items.length - invalidIdx.length,
+      };
+    }
+
+    try {
+      const res = await this.logModel.insertMany(cleaned, { ordered: false });
+      return {
+        inserted: res.length,
+        invalid: invalidIdx.length,
+        duplicatesInPayload: items.length - invalidIdx.length - res.length,
+      };
+    } catch (e: any) {      
+      const writeErrors = Array.isArray(e?.writeErrors) ? e.writeErrors : [];
+      const dupInDb = writeErrors.filter((w: any) => w?.code === 11000).length;
+      const inserted = e?.result?.nInserted ?? 0;
+      return {
+        inserted,
+        invalid: invalidIdx.length,
+        duplicatesInDb: dupInDb,
+      };
+    }
+  }
+
 }

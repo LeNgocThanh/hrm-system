@@ -14,3 +14,4 @@ export class AttendanceLog extends Document {
 }
 
 export const AttendanceLogSchema = SchemaFactory.createForClass(AttendanceLog);
+AttendanceLogSchema.index({ userId: 1, timestamp: 1 });

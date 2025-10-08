@@ -6,6 +6,13 @@ import { AttendanceLog } from './schemas/attendance-log.schema';
 import { UpdateDailyDto } from './dto/update-daily.dto';
 import { WorkShiftType, SHIFT_CONFIG } from './common/work-shift-type.enum';
 
+function dayWindow(dateStr: string) {
+  const d0 = new Date(dateStr); // kỳ vọng 'YYYY-MM-DD'
+  const start = new Date(d0); start.setHours(0,0,0,0);
+  const end   = new Date(d0); end.setHours(23,59,59,999);
+  return { start, end };
+}
+
 @Injectable()
 export class DailyService {
   constructor(
@@ -28,37 +35,46 @@ export class DailyService {
 
     const standardOut = new Date(workDate);
     standardOut.setHours(+config.end.split(':')[0], +config.end.split(':')[1]);
+    const checkIn = new Date(update.checkIn);
+    const checkOut = new Date(update.checkOut);
 
     lateMinutes =
-      update.checkIn > standardIn
-        ? Math.floor((update.checkIn.getTime() - standardIn.getTime()) / 60000)
+      checkIn > standardIn
+        ? Math.floor((checkIn.getTime() - standardIn.getTime()) / 60000)
         : 0;
 
     earlyLeaveMinutes =
-      update.checkOut < standardOut
-        ? Math.floor((standardOut.getTime() - update.checkOut.getTime()) / 60000)
+      checkOut < standardOut
+        ? Math.floor((standardOut.getTime() - checkOut.getTime()) / 60000)
         : 0;
 
     workedMinutes = Math.max(
-      Math.floor((update.checkOut.getTime() - update.checkIn.getTime()) / 60000) -
+      Math.floor((checkOut.getTime() - checkIn.getTime()) / 60000) -
         config.breakMinutes,
       0,
     );
   }
+  const rawUpdate = update as Record<string, any>;
+  delete rawUpdate.userId;
+  delete rawUpdate.workDate; 
 
   return this.dailyModel.findOneAndUpdate(
-    { userId, workDate },
-    {
-      $set: {
-        ...update,
-        shiftType,
-        workedMinutes,
-        lateMinutes,
-        earlyLeaveMinutes,
-      },
+  { userId, workDate },
+  {
+    $set: {
+      shiftType,
+      workedMinutes,
+      lateMinutes,
+      earlyLeaveMinutes,           
+      ...rawUpdate,
     },
-    { new: true, upsert: true },
-  );
+    $setOnInsert: {
+      userId,
+      workDate,
+    },
+  },
+  { new: true, upsert: true }
+);
 }
 
   async findAll(): Promise<AttendanceDaily[]> {
@@ -87,15 +103,18 @@ export class DailyService {
   // === Logic từ Logs → Daily ===
   async upsertFromLogs(userId: string, workDate: Date, shiftType: WorkShiftType = WorkShiftType.REGULAR) {
     // 1. Lấy log trong ngày
-    const startOfDay = new Date(workDate);
-    startOfDay.setHours(0, 0, 0, 0);
+    const { start, end } = dayWindow(workDate.toISOString().slice(0, 10));
+    const cfg = SHIFT_CONFIG[shiftType];  
 
-    const endOfDay = new Date(workDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const [sh, sm] = cfg.start.split(':').map(Number);
+    const [eh, em] = cfg.end.split(':').map(Number);
+
+    const standardIn = new Date(workDate); standardIn.setHours(sh, sm, 0, 0);
+    const standardOut = new Date(workDate); standardOut.setHours(eh, em, 0, 0);
 
     const logs = await this.logModel.find({
       userId,
-      timestamp: { $gte: startOfDay, $lte: endOfDay },
+      timestamp: { $gte: start, $lte: end },
     }).sort({ timestamp: 1 }).exec();
 
     if (!logs.length) return null;
@@ -105,13 +124,7 @@ export class DailyService {
     const checkOut = logs[logs.length - 1].timestamp;
 
     // 3. Lấy config ca làm
-    const config = SHIFT_CONFIG[shiftType];
-
-    const standardIn = new Date(workDate);
-    standardIn.setHours(+config.start.split(':')[0], +config.start.split(':')[1]);
-
-    const standardOut = new Date(workDate);
-    standardOut.setHours(+config.end.split(':')[0], +config.end.split(':')[1]);
+      
 
     // 4. Tính toán
     const lateMinutes = checkIn > standardIn
@@ -123,7 +136,7 @@ export class DailyService {
       : 0;
 
     const workedMinutes = Math.max(
-      Math.floor((checkOut.getTime() - checkIn.getTime()) / 60000) - config.breakMinutes,
+      Math.floor((checkOut.getTime() - checkIn.getTime()) / 60000) - cfg.breakMinutes,
       0,
     );
 
