@@ -1,7 +1,6 @@
 export enum WorkShiftType {
-  REGULAR = 'REGULAR', // ca hành chính
-  NIGHT = 'NIGHT',     // ca đêm
-  MORNING = 'MORNING'
+  REGULAR = 'REGULAR', 
+  ONLY_2_TO_6 = 'ONLY_2_TO_6', // Chỉ làm từ Thứ 2 đến Thứ 6, nghỉ Thứ 7 và CN 
 }
 
 export const SHIFT_CONFIG = {
@@ -9,15 +8,10 @@ export const SHIFT_CONFIG = {
     start: '08:30', // giờ vào chuẩn
     end: '17:30',   // giờ tan chuẩn
     breakMinutes: 60, // nghỉ trưa
-  },
-  [WorkShiftType.NIGHT]: {
-    start: '22:00',
-    end: '06:00',
-    breakMinutes: 0,
-  },
-  [WorkShiftType.MORNING]: {
-    start: '06:00',
-    end: '14:00',
-    breakMinutes: 0,
-  },
+  }, 
+  [WorkShiftType.ONLY_2_TO_6]: {
+    start: '08:30', // giờ vào chuẩn
+    end: '17:30',   // giờ tan chuẩn
+    breakMinutes: 60, // nghỉ trưa
+  }, 
 };

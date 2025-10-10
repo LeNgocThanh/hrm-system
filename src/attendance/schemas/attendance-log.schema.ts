@@ -13,5 +13,6 @@ export class AttendanceLog extends Document {
   source: string; // máy chấm công, web, mobile...
 }
 
+export type AttendanceLogDocument = AttendanceLog & Document;
 export const AttendanceLogSchema = SchemaFactory.createForClass(AttendanceLog);
 AttendanceLogSchema.index({ userId: 1, timestamp: 1 });

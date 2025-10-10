@@ -23,6 +23,8 @@ import { LeaveModule } from './leave/leave.module';
 import { OverTimeModule } from './over-time/over-time.module';
 import { UserTimeEntriesModule } from './user-time-entries/user-time-entries.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ShiftTypesModule } from './shift_types/shift_types.module';
+import { UserPoliciesModule } from './user-policies/user-policies.module';
 
 
 @Module({
@@ -53,7 +55,9 @@ import { AttendanceModule } from './attendance/attendance.module';
     LeaveModule,
     OverTimeModule,
     UserTimeEntriesModule,
-    AttendanceModule, 
+    AttendanceModule,
+    ShiftTypesModule,
+    UserPoliciesModule, 
   ]
 })
 export class AppModule {}

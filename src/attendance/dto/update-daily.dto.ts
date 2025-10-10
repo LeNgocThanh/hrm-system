@@ -27,4 +27,7 @@ export class UpdateDailyDto {
   @IsOptional()
   @IsEnum(AttendanceStatus)
   status?: AttendanceStatus;
+
+  @IsOptional()
+  editNote?: string;
 }

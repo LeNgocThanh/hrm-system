@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseInterceptors, UploadedFile, UsePipes, ValidationPipe, BadRequestException } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseInterceptors, UploadedFile, UsePipes, ValidationPipe, BadRequestException, Put } from '@nestjs/common';
 import { LogsService } from './logs.service';
 import { DailyService } from './daily.service';
 import { SummaryService } from './summary.service';
@@ -8,6 +8,7 @@ import { AttendanceJobService } from './attendance.job.service';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AttendanceDaily } from './schemas/attendance-daily.schema';
 import * as XLSX from 'xlsx';
+import { RunLogsToDailySmartDto } from './dto/jobs-logs-to-dailly';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -70,46 +71,41 @@ export class AttendanceController {
 
   // --- DAILY ---
    @Get('daily')
-  async getDailyFrom(@Query('userId') userId?: string,@Query('from') from?: string, @Query('to') to?: string) {      
-    if (from && to) {
-      return this.dailyService.findByDateRange(userId, from, to);
-    }
-    return this.dailyService.findByUser(userId);
-  }
-
-  @Post('daily')
-  async upsertDaily(    
-    @Body() body: any,
+  async getDaily(
+    @Query('userId') userId?: string,
+    @Query('date') date?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    const { userId, workDate } = body as any;
-    const dto = body as UpdateDailyDto;
-    return this.dailyService.upsert(userId, workDate, dto);
-  }
-
-  @Get('daily/:userId')
-  async getDaily(@Param('userId') userId: string, @Query('from') from?: string, @Query('to') to?: string) {
-    if (from && to) {
-      return this.dailyService.findByDateRange(userId, from, to);
+    if (userId && date) {
+      return this.dailyService.findOne(userId, date);
     }
-    return this.dailyService.findByUser(userId);
-  } 
+    if (from || to) {
+      // Nếu không truyền userId, bạn có thể trả về rỗng hoặc mở rộng hàm service để hỗ trợ all users
+      if (!userId) return [];
+      return this.dailyService.findRange(userId, from, to);
+    }
+    // Không có tham số -> rỗng
+    return [];
+  }  
+
+  @Put('times')
+  async upsertTimes(@Body() body: any) {
+    const { userId, date } = body || {};
+    if (!userId || !date) {
+      throw new BadRequestException('userId và date là bắt buộc');
+    }
+    return this.dailyService.upsertTimes(body);
+  }
 
   // --- SUMMARY ---
-  @Post('summary/:userId/:month')
-  async upsertSummary(
-    @Param('userId') userId: string,
-    @Param('month') month: string,
-    @Body() data: any,
-  ) {
-    return this.summaryService.upsert(userId, month, data);
-  }
-
-  @Get('summary/:userId')
-  async getSummary(@Param('userId') userId: string, @Query('month') month?: string) {
-    if (month) {
-      return this.summaryService.findByMonth(userId, month);
+  @Get()
+  async getMonthly(@Query('userId') userId?: string, @Query('monthKey') monthKey?: string) {
+    if (!userId) {
+      throw new BadRequestException('Thiếu userId');
     }
-    return this.summaryService.findByUser(userId);
+    const mk = monthKey || new Date().toISOString().slice(0, 7);
+    return this.summaryService.upsertMonthly(userId, mk);
   }
 }
 
@@ -118,26 +114,33 @@ export class AttendanceJobController {
   constructor(private readonly jobService: AttendanceJobService) {}
 
   // Logs → Daily
-  @Post('logs-to-daily')
-  async runLogsToDaily(
-    @Query('from') from: string,
-    @Query('to') to: string,
-    @Query('userId') userId?: string,
-  ) {
-    return this.jobService.runLogsToDaily(
-      userId,
-      from,
-      to,
-    );
+ @Post('runLogsToDaily')
+  async runLogsToDaily(@Body() body: any) {
+    const { userId, from, to } = body || {};
+    return this.jobService.runLogsToDaily(userId, from, to);
   }
 
-  // Daily → Summary
-  @Post('daily-to-summary')
-  async runDailyToSummary(
-    @Query('from') from: string,
-    @Query('to') to: string,
-    @Query('userId') userId?: string,
-  ) {
-    return this.jobService.runDailyToSummary(userId, from, to);
+  @Post('runLogsToDailyManual')
+  async runLogsToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
+    const { userId, from, to, shiftType } = dto || {};
+    return this.jobService.runLogsToDailySmart(userId, from, to, shiftType);
+  }
+
+  /**
+   * Mô phỏng job “hôm qua” (giống cronDailyYesterday)
+   */
+  @Post('runYesterday')
+  async runYesterday() {
+    return this.jobService.cronDailyYesterday();
+  }
+
+  /**
+   * Tổng hợp SUMMARY theo tháng (user hoặc tất cả).
+   * Body: { userId?: string, monthKey?: 'YYYY-MM' }
+   */
+  @Post('runMonthlySummary')
+  async runMonthlySummary(@Body() body: any) {
+    const { userId, monthKey } = body || {};
+    return this.jobService.runMonthlySummary(userId, monthKey);
   }
 }
