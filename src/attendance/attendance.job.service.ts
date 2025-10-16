@@ -177,6 +177,72 @@ async runLogsToDailySmart(
   };
 }
 
+async runLogsOverNightToDailySmart(
+  userId?: string,
+  from?: string,
+  to?: string,
+  shiftType?: WorkShiftType,
+) {
+  // === Xác định khoảng thời gian cần chạy ===
+  let rangeFrom: string;
+  let rangeTo: string;
+
+  if (!from && !to) {
+    // Không truyền gì hoặc chỉ truyền userId -> mặc định tháng trước
+    const prev = monthRange(shiftMonthKey(isoMonthKey(nowInTz(TZ)), -1));
+    rangeFrom = prev.from;
+    rangeTo = prev.to;
+  } else {
+    // Có from/to: chuẩn hoá
+    rangeFrom = from!;
+    rangeTo = to ?? from!;
+  }
+  if (!shiftType) {
+    shiftType = WorkShiftType.REGULAR;
+  }
+
+  // === Xác định danh sách user ===
+  let targetUsers: string[] = [];
+  if (userId) {
+    targetUsers = [userId];
+  } else {
+    targetUsers = await this.distinctUsersByDailyRange(rangeFrom, rangeTo);
+  }
+
+  // === Chạy upsert Daily ===
+  let upserts = 0;
+  const days = enumerateDateKeys(rangeFrom, rangeTo);
+
+  for (const dk of days) {
+    if (targetUsers.length === 0) {
+      // Không có user nào có log ngày này -> bỏ qua
+      continue;
+    }
+    // Nếu chạy ALL users, có thể lọc lại theo từng ngày để tránh upsert thừa:
+    const usersForDay = userId
+      ? targetUsers
+      : (await this.distinctUsersByDate(dk)); // chỉ user thực sự có log ngày dk
+
+    for (const uid of usersForDay) {
+      await this.daily.upsertByShiftDefinition(uid, dk, shiftType, {
+        allowWeekendWork: false,
+        halfThresholdMinutes: 20,
+      });
+      upserts++;
+    }
+  }
+
+  return {
+    status: 'ok',
+    userId: userId || null,
+    from: rangeFrom,
+    to: rangeTo,
+    users: userId ? 1 : 'ALL',
+    shiftType,
+    upserts,
+  };
+}
+
 
   /** helpers */
   private async distinctUsersByDate(dateKey: string): Promise<string[]> {

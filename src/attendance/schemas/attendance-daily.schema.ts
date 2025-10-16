@@ -29,9 +29,12 @@ export class AttendanceDaily extends Document {
   @Prop() lateMinutes?: number;
   @Prop() earlyLeaveMinutes?: number;
 
+  @Prop({ default: false }) isFinalized!: boolean; // đã chốt công (không tự động cập nhật nữa) dùng cho trường hợp đã manual edit hoặc logic chốt công mở rộng sau này
+
   // Theo phiên
   @Prop({ type: DailySessionActual, _id: false }) am?: DailySessionActual;
   @Prop({ type: DailySessionActual, _id: false }) pm?: DailySessionActual;
+  @Prop({ type: DailySessionActual, _id: false }) ov?: DailySessionActual; 
 
   // Metadata
   @Prop() editNote?: string;

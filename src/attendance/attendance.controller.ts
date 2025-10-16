@@ -91,8 +91,8 @@ export class AttendanceController {
 
   @Put('times')
   async upsertTimes(@Body() body: any) {
-    const { userId, date } = body || {};
-    if (!userId || !date) {
+    const { userId, dateKey } = body || {};
+    if (!userId || !dateKey) {
       throw new BadRequestException('userId và date là bắt buộc');
     }
     return this.dailyService.upsertTimes(body);
@@ -124,6 +124,12 @@ export class AttendanceJobController {
   async runLogsToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
     const { userId, from, to, shiftType } = dto || {};
     return this.jobService.runLogsToDailySmart(userId, from, to, shiftType);
+  }
+
+  @Post('runLogsOverNightToDailyManual')
+  async runLogsOverNightToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
+    const { userId, from, to, shiftType } = dto || {};
+    return this.jobService.runLogsOverNightToDailySmart(userId, from, to, shiftType);
   }
 
   /**
