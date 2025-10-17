@@ -224,6 +224,11 @@ async runLogsOverNightToDailySmart(
       : (await this.distinctUsersByDate(dk)); // chỉ user thực sự có log ngày dk
 
     for (const uid of usersForDay) {
+      const daily = await this.daily.findOne(uid, dk);
+      if (daily && daily.isManualEdit) {
+        // Đã có dữ liệu, dữ liệu đã chỉnh sửa tay -> bỏ qua
+        continue;
+      }
       await this.daily.upsertByShiftDefinition(uid, dk, shiftType, {
         allowWeekendWork: false,
         halfThresholdMinutes: 20,

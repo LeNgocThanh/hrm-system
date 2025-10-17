@@ -3,11 +3,12 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 
 import { AttendanceDaily, AttendanceDailyDocument } from './schemas/attendance-daily.schema';
+import {AttendanceSummaryDocument, AttendanceSummary} from './schemas/attendance-summary.schema';
 
-export interface AttendanceSummary {
+export interface AttendanceSummaryInterface {
   userId: string;
   monthKey: string; // 'YYYY-MM'
-  totals: {
+  days: {
     days: number;
     presentDays: number;
     fullDays: number;
@@ -19,6 +20,8 @@ export interface AttendanceSummary {
     worked: number;
     late: number;
     earlyLeave: number;
+    hourWork: number;
+    workedCheckIn: number;
   };
   computedAt: Date;
 }
@@ -28,9 +31,11 @@ export class SummaryService {
   constructor(
     @InjectModel(AttendanceDaily.name)
     private readonly dailyModel: Model<AttendanceDailyDocument>,
+    @InjectModel(AttendanceSummary.name)
+    private readonly summaryModel: Model<AttendanceSummaryDocument>,
   ) {}
 
-  async upsertMonthly(userId: string, monthKey: string): Promise<AttendanceSummary> {
+  async upsertMonthly(userId: string, monthKey: string): Promise<AttendanceSummaryInterface> {
     const [y, m] = monthKey.split('-').map(Number);
     const from = `${monthKey}-01`;
     const lastDate = new Date(Date.UTC(y, m, 0)).getUTCDate();
@@ -40,40 +45,45 @@ export class SummaryService {
       .find({ userId, dateKey: { $gte: from, $lte: to } })
       .lean();
 
-    const totals = {
+    const days = {
       days: 0,
       presentDays: 0,
+      leaveDays: 0,
       fullDays: 0,
       halfDaysAM: 0,
       halfDaysPM: 0,
       absentDays: 0,
     };
-    const minutes = { worked: 0, late: 0, earlyLeave: 0 };
+    const minutes = { worked: 0, late: 0, earlyLeave: 0, hourWork: 0, workedCheckIn: 0 };
 
     for (const d of items) {
-      totals.days++;
+      days.days++;
       minutes.worked += d.workedMinutes ?? 0;
       minutes.late += d.lateMinutes ?? 0;
       minutes.earlyLeave += d.earlyLeaveMinutes ?? 0;
+      minutes.hourWork += d.hourWork ?? 0;
+      minutes.workedCheckIn += d.workedCheckIn ?? 0;
+
       switch (d.status) {
-        case 'FULL': totals.fullDays++; totals.presentDays++; break;
-        case 'HALF_AM': totals.halfDaysAM++; totals.presentDays++; break;
-        case 'HALF_PM': totals.halfDaysPM++; totals.presentDays++; break;
-        case 'PRESENT': totals.presentDays++; break;
-        case 'ABSENT': default: totals.absentDays++; break;
+        case 'FULL': days.fullDays++; days.presentDays++; break;
+        case 'HALF_AM': days.halfDaysAM++; days.presentDays++; break;
+        case 'HALF_PM': days.halfDaysPM++; days.presentDays++; break;
+        case 'LEAVE':   days.leaveDays++; days.presentDays++; break; 
+        case 'PRESENT': days.presentDays++; break;
+        case 'ABSENT':  days.absentDays++; break;
       }
     }
 
-    const result: AttendanceSummary = {
+    const result: AttendanceSummaryInterface = {
       userId,
       monthKey,
-      totals,
+      days,
       minutes,
       computedAt: new Date(),
     };
 
-    // nếu có collection Summary riêng: upsert vào đây
-    // await this.summaryModel.updateOne({ userId, monthKey }, { $set: result }, { upsert: true });
+    //nếu có collection Summary riêng: upsert vào đây
+    await this.summaryModel.updateOne({ userId, month: monthKey }, { $set: result }, { upsert: true });
 
     return result;
   }
@@ -83,30 +93,34 @@ export class SummaryService {
       .find({ userId, dateKey: { $gte: from, $lte: to } })
       .lean();
 
-    const totals = {
+    const days = {
       days: 0,
       presentDays: 0,
       fullDays: 0,
       halfDaysAM: 0,
       halfDaysPM: 0,
+      leaveDays: 0,
       absentDays: 0,
     };
-    const minutes = { worked: 0, late: 0, earlyLeave: 0 };
+    const minutes = { worked: 0, late: 0, earlyLeave: 0, hourWork: 0, workedCheckIn: 0 };
 
     for (const d of items) {
-      totals.days++;
+      days.days++;
       minutes.worked += d.workedMinutes ?? 0;
       minutes.late += d.lateMinutes ?? 0;
       minutes.earlyLeave += d.earlyLeaveMinutes ?? 0;
+      minutes.hourWork += d.hourWork ?? 0;
+      minutes.workedCheckIn += d.workedCheckIn ?? 0;
       switch (d.status) {
-        case 'FULL': totals.fullDays++; totals.presentDays++; break;
-        case 'HALF_AM': totals.halfDaysAM++; totals.presentDays++; break;
-        case 'HALF_PM': totals.halfDaysPM++; totals.presentDays++; break;
-        case 'PRESENT': totals.presentDays++; break;
-        case 'ABSENT': default: totals.absentDays++; break;
+        case 'FULL': days.fullDays++; days.presentDays++; break;
+        case 'HALF_AM': days.halfDaysAM++; days.presentDays++; break;
+        case 'HALF_PM': days.halfDaysPM++; days.presentDays++; break;
+        case 'LEAVE': days.leaveDays++; days.presentDays++; break;
+        case 'PRESENT': days.presentDays++; break;        
+        case 'ABSENT': default: days.absentDays++; break;
       }
     }
 
-    return { userId, from, to, totals, minutes, computedAt: new Date() };
+    return { userId, from, to, days, minutes, computedAt: new Date() };
   }
 }

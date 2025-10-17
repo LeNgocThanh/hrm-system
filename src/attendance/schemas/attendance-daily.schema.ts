@@ -7,12 +7,14 @@ import { HydratedDocument } from 'mongoose';
 class DailySessionActual {
   @Prop() checkIn?: Date;
   @Prop() checkOut?: Date;
-  @Prop() workedMinutes?: number;
+  @Prop() workedMinutes?: number; //số phút làm được tính công  
   @Prop() lateMinutes?: number;       // vào trễ so với session.start (+grace)
   @Prop() earlyLeaveMinutes?: number; // ra sớm so với session.end  (-grace)
+  @Prop() hourWork?: number; //số phút công phải làm trong ngày
+  @Prop() workedCheckIn?: number; // số phút thực tế đã làm tính từ checkin 
   @Prop() fulfilled?: boolean;    
   
-  // CÁC TRƯỜNG MỚI ĐỂ LƯU THỜI GIAN SỬA THỦ CÔNG
+  // CÁC TRƯỜNG LƯU THỜI GIAN SỬA THỦ CÔNG
   @Prop() checkIn_Edit?: Date; // Thời gian Check-in thủ công
   @Prop() checkOut_Edit?: Date; // Thời gian Check-out thủ công// đủ điều kiện tính công phiên
 }
@@ -24,10 +26,12 @@ export class AttendanceDaily extends Document {
   @Prop({ enum: WorkShiftType, required: true }) shiftType!: WorkShiftType;
 
   // Tóm tắt
-  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT';
+  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE'; // trạng thái chấm công ngày
   @Prop() workedMinutes?: number;
   @Prop() lateMinutes?: number;
   @Prop() earlyLeaveMinutes?: number;
+  @Prop() hourWork?: number; //số phút công phải làm trong ngày
+  @Prop() workedCheckIn?: number; // số phút thực tế đã làm tính từ checkin
 
   @Prop({ default: false }) isFinalized!: boolean; // đã chốt công (không tự động cập nhật nữa) dùng cho trường hợp đã manual edit hoặc logic chốt công mở rộng sau này
 

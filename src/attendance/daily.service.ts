@@ -8,6 +8,7 @@ import { WorkShiftType } from './common/work-shift-type.enum';
 import { SHIFT_REGISTRY, ShiftDefinition, ShiftSession, resolveSessionsForDate, resolveIsCheckTwoTimesForShiftDefinition } from './common/shift-definition';
 
 import e from 'express';
+import { min } from 'class-validator';
 
 // export interface ShiftSession {
 // code: string; // 'AM' | 'PM' | 'OV' | ...
@@ -31,10 +32,14 @@ interface AggregateResult {
   workedMinutes: number;
   lateMinutes: number;
   earlyLeaveMinutes: number;
+  workedCheckIn: number;
+  hourWork: number;
   status: string; // 'ABSENT' | 'HALF' | 'FULL' | ... tuỳ dự án
   sessions?: Array<{
     code: string;
     workedMinutes: number;
+    hourWork: number;
+    workedCheckIn: number;
     lateMinutes: number;
     earlyLeaveMinutes: number;
     pairs: SessionPair[];
@@ -148,6 +153,8 @@ export class DailyService {
           userId,
           dateKey,
           shiftType,
+          workedCheckIn: agg.workedCheckIn,
+          hourWork: agg.hourWork,
           workedMinutes: agg.workedMinutes,
           lateMinutes: agg.lateMinutes,
           earlyLeaveMinutes: agg.earlyLeaveMinutes,
@@ -202,6 +209,8 @@ export class DailyService {
 
       if (t.checkIn) inDate = parseFlexibleLocal(dateKey, t.checkIn, tz);
       if (t.checkOut) outDate = parseFlexibleLocal(dateKey, t.checkOut, tz);
+
+      console.log(`  → Manual input for session ${session.code}: checkIn=${t.checkIn} (${inDate?.toISOString()}) checkOut=${t.checkOut} (${outDate?.toISOString()})`);
       
       const arr: SessionPair[] = [];
       if (inDate && outDate && outDate < inDate) {
@@ -213,13 +222,16 @@ export class DailyService {
         // Cho phép chỉ nhập OUT? thường không, nhưng nếu có, coi như mở từ start phiên
         const start = zonedTimeOrOverflowToUtc(dateKey, `${session.start}:00`, tz);
         arr.push({ in: start, out: outDate });
-      } else {
-        // Không nhập gì cho code này → bỏ qua
+      } else if (!inDate && !outDate) {       
         continue;
+      }
+      else {
+        arr.push({ in: inDate!, out: outDate });
       }
 
       pairsBySession[session.code] = arr;
     }
+    console.log(`  → Manual pairsBySession: ${JSON.stringify(pairsBySession)}`, ' ', sessions, ' ', dto.times);
 
     const agg = aggregateSessions(pairsBySession, sessions, dateKey, tz, { halfThresholdMinutes:  dto?.['halfThresholdMinutes' as any] });
 
@@ -230,6 +242,8 @@ export class DailyService {
           userId,
           dateKey,
           shiftType,
+          workedCheckIn: agg.workedCheckIn,
+          hourWork: agg.hourWork,
           workedMinutes: agg.workedMinutes,
           lateMinutes: agg.lateMinutes,
           earlyLeaveMinutes: agg.earlyLeaveMinutes,
@@ -240,6 +254,7 @@ export class DailyService {
           ...(function(){
             const legacy = projectLegacySessions(agg.sessions ?? []);
             const set: any = {};
+            console.log('legacy', legacy);
             if (legacy.am) set.am = legacy.am;
             if (legacy.pm) set.pm = legacy.pm;
             if (legacy.ov) set.ov = legacy.ov;
@@ -321,6 +336,8 @@ export function projectLegacySessions(perSession: NonNullable<AggregateResult['s
     (out as any)[key] = {
       firstIn: firstIn ? new Date(firstIn).toISOString() : undefined,
       lastOut: lastOut ? new Date(lastOut).toISOString() : undefined,
+      hourWork: s.hourWork,
+      workedCheckIn: s.workedCheckIn,
       workedMinutes: s.workedMinutes,
       lateMinutes: s.lateMinutes,
       earlyLeaveMinutes: s.earlyLeaveMinutes,
@@ -479,6 +496,9 @@ export function aggregateSessions(
 ): AggregateResult {
   const perSession: AggregateResult['sessions'] = [];
 
+
+  let totalHourWork = 0;
+  let totalWorkedCheckIn = 0; 
   let totalWorked = 0;
   let totalLate = 0;
   let totalEarly = 0;
@@ -488,13 +508,17 @@ export function aggregateSessions(
     const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
     const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
 
+    const workHour = minutesBetween(start, end);
+
     const pairs = pairsBySession[s.code] || [];
-    const closedPairs = pairs.filter(p => !!p.out);
+    const closedPairs = pairs.filter(p => !!p.out && p.in !== p.out);
     let worked = 0;
+    let workedCheckIn = 0;
     for (const p of closedPairs) {
       const inT = p.in;
       const outT = p.out!;
       worked += Math.max(0, overlappedMinutes(inT, outT, start, end));
+      workedCheckIn += Math.max(0, minutesBetween(inT,outT));
     }
 
     let late = 0;
@@ -505,8 +529,9 @@ export function aggregateSessions(
       if (firstIn > start) late = minutesBetween(start, firstIn);
       if (lastOut < end) early = minutesBetween(lastOut, end);
     }
-
-
+    
+    totalWorkedCheckIn += workedCheckIn;
+    totalHourWork += workHour;
     totalWorked += worked;
     totalLate += late;
     totalEarly += early;
@@ -515,6 +540,8 @@ export function aggregateSessions(
     perSession.push({
       code: s.code,
       workedMinutes: worked,
+      hourWork: workHour,
+      workedCheckIn: workedCheckIn,
       lateMinutes: late,
       earlyLeaveMinutes: early,
       pairs,
@@ -533,6 +560,8 @@ export function aggregateSessions(
     workedMinutes: totalWorked,
     lateMinutes: totalLate,
     earlyLeaveMinutes: totalEarly,
+    workedCheckIn: totalWorkedCheckIn,
+    hourWork: totalHourWork,
     status,
     sessions: perSession,
   };

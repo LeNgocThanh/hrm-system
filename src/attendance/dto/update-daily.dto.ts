@@ -18,6 +18,14 @@ export class UpdateDailyDto {
 
   @IsOptional()
   @IsNumber()
+  hourWork?: number;
+
+  @IsOptional()
+  @IsNumber()
+  workedCheckIn?: number;
+
+  @IsOptional()
+  @IsNumber()
   lateMinutes?: number;
 
   @IsOptional()

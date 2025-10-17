@@ -9,6 +9,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import { AttendanceDaily } from './schemas/attendance-daily.schema';
 import * as XLSX from 'xlsx';
 import { RunLogsToDailySmartDto } from './dto/jobs-logs-to-dailly';
+import { DaillyToMonthDto } from './dto/daillyToMonth.dto';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -145,7 +146,7 @@ export class AttendanceJobController {
    * Body: { userId?: string, monthKey?: 'YYYY-MM' }
    */
   @Post('runMonthlySummary')
-  async runMonthlySummary(@Body() body: any) {
+  async runMonthlySummary(@Body() body: DaillyToMonthDto) {
     const { userId, monthKey } = body || {};
     return this.jobService.runMonthlySummary(userId, monthKey);
   }
