@@ -6,27 +6,15 @@ import { AttendanceDaily, AttendanceDailyDocument } from './schemas/attendance-d
 import { AttendanceLog, AttendanceLogDocument } from './schemas/attendance-log.schema';
 import { WorkShiftType } from './common/work-shift-type.enum';
 import { SHIFT_REGISTRY, ShiftDefinition, ShiftSession, resolveSessionsForDate, resolveIsCheckTwoTimesForShiftDefinition } from './common/shift-definition';
-
-import e from 'express';
-import { min } from 'class-validator';
-
-// export interface ShiftSession {
-// code: string; // 'AM' | 'PM' | 'OV' | ...
-// start: string; // 'HH:mm'
-// end: string; // 'HH:mm' — cho OV có thể > 24h (ví dụ '26:30') nếu dự án cho phép dạng này
-// maxCheckInEarlyMins?: number; // mới/đã thêm
-// maxCheckOutLateMins?: number; // mới/đã thêm
-// }
-
+import { Holiday, HolidayDocument } from './schemas/holiday-exception.schema';
+import { HolidayService } from './holiday.service';
 
 interface UpsertOptions {
   allowWeekendWork?: boolean;
   halfThresholdMinutes?: number; // ngưỡng chấm HALF
 }
 
-
 interface SessionPair { in: Date; out?: Date }
-
 
 interface AggregateResult {
   workedMinutes: number;
@@ -66,12 +54,16 @@ export interface UpsertTimesDto {
 @Injectable()
 export class DailyService {
   private readonly logger = new Logger(DailyService.name);
+  
   constructor(
     @InjectModel(AttendanceDaily.name)
     private readonly dailyModel: Model<AttendanceDailyDocument>,
 
     @InjectModel(AttendanceLog.name)
-    private readonly logsModel: Model<AttendanceLogDocument>,
+    private readonly logsModel: Model<AttendanceLogDocument>,  
+   
+
+    private readonly holidaySvc: HolidayService,
   ) { }
 
   /** ------- Public APIs ------- */
@@ -98,7 +90,7 @@ export class DailyService {
     shiftType: WorkShiftType = WorkShiftType.REGULAR,
     opts?: UpsertOptions,
   ) {
-    const def = requireShift(shiftType);
+    const def = requireShift(shiftType);    
 
     // 1) Xác định khung thời gian lấy log cho ngày N
     const daySessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
@@ -145,6 +137,54 @@ export class DailyService {
     // 5) Tính worked/late/early theo từng session rồi tổng hợp
     const agg = aggregateSessions(pairsBySession, daySessions, dateKey, TZ, opts);
 
+    const holiday = await this.holidaySvc.findEffective(dateKey);
+    if(holiday) {
+      await this.dailyModel.updateOne(
+      { userId, dateKey },
+      {
+        $set: {
+          userId,
+          dateKey,
+          shiftType,
+          workedCheckIn: agg.workedCheckIn,
+          hourWork: 0,
+          workedMinutes: 0,
+          lateMinutes: 0,
+          earlyLeaveMinutes: 0,
+          status: 'HOLIDAY',
+          sessions: agg.sessions, // nếu schema có
+          ...(function () {
+            const legacy = projectLegacySessions(agg.sessions ?? []);
+            const set: any = {};
+            if (legacy.am) {
+              const amSession = legacy.am;
+              amSession.earlyLeaveMinutes = 0;
+              amSession.lateMinutes = 0;
+              amSession.workedMinutes = 0;
+              set.am = amSession; 
+            }
+            if (legacy.pm) {
+              const pmSession = legacy.pm;
+              pmSession.earlyLeaveMinutes = 0;
+              pmSession.lateMinutes = 0;
+              pmSession.workedMinutes = 0;
+              set.pm = pmSession; 
+            }
+            if (legacy.ov) {
+              const ovSession = legacy.ov;
+              ovSession.earlyLeaveMinutes = 0;
+              ovSession.lateMinutes = 0;
+              ovSession.workedMinutes = 0;
+              set.ov = legacy.ov;
+            }
+            return set;
+          })(),
+        },
+      },
+      { upsert: true },
+    );
+    }
+    else {
     // 6) Upsert AttendanceDaily
     await this.dailyModel.updateOne(
       { userId, dateKey },
@@ -171,7 +211,7 @@ export class DailyService {
         },
       },
       { upsert: true },
-    );
+    ); }
   }
 
 
@@ -298,6 +338,8 @@ export class DailyService {
   }
 }
 
+
+
 /* ====================== Helpers (no dayjs) ====================== */
 export type LegacySessionKey = 'am' | 'pm' | 'ov';
 
@@ -347,58 +389,58 @@ export function projectLegacySessions(perSession: NonNullable<AggregateResult['s
   return out;
 }
 
-export function buildPairsBySessionFlexibleNew(
-  logs: Date[],
-  sessions: ShiftSession[],
-  dateKey: string,
-  tz: string,
-  isCheckTwoTimes: boolean = false,
-): Record<string, SessionPair[]> {
-  const result: Record<string, SessionPair[]> = {};
-  const unused = [...logs]; // hồ log chưa dùng
-  console.log(`  → Building pairs for sessions: ${sessions.map(s => s.code).join(', ')}, from logs: ${logs.map(t => t.toISOString()).join(', ')}`);
+// export function buildPairsBySessionFlexibleNew(
+//   logs: Date[],
+//   sessions: ShiftSession[],
+//   dateKey: string,
+//   tz: string,
+//   isCheckTwoTimes: boolean = false,
+// ): Record<string, SessionPair[]> {
+//   const result: Record<string, SessionPair[]> = {};
+//   const unused = [...logs]; // hồ log chưa dùng
+//   console.log(`  → Building pairs for sessions: ${sessions.map(s => s.code).join(', ')}, from logs: ${logs.map(t => t.toISOString()).join(', ')}`);
 
-  for (const s of sessions) {
+//   for (const s of sessions) {
 
-    const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
-    const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
-
-
-    const maxInEarly = s.maxCheckInEarlyMins ?? 0;
-    const maxOutLate = s.maxCheckOutLateMins ?? 0;
+//     const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
+//     const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
 
 
-    const guardStart = addMinutes(start, -maxInEarly);
-    const guardEnd = addMinutes(end, +maxOutLate);
+//     const maxInEarly = s.maxCheckInEarlyMins ?? 0;
+//     const maxOutLate = s.maxCheckOutLateMins ?? 0;
 
-    // chọn log thuộc vùng canh của phiên
-    const inside: Array<{ idx: number; t: Date }> = [];
-    for (let i = 0; i < unused.length; i++) {
-      const t = unused[i];
-      if (t >= guardStart && t <= guardEnd) inside.push({ idx: i, t });
-    }
 
-    // sort theo thời gian
-    inside.sort((a, b) => a.t.getTime() - b.t.getTime());
+//     const guardStart = addMinutes(start, -maxInEarly);
+//     const guardEnd = addMinutes(end, +maxOutLate);
 
-    // ghép cặp trong phạm vi phiên
-    let pairs: SessionPair[] = [];
-    if (inside.length >= 1) {
-      const earliestIn = inside[0].t;
-      const latestOut = inside[inside.length - 1].t;
-      pairs = inside.length === 1
-        ? [{ in: earliestIn }]
-        : [{ in: earliestIn, out: latestOut }];
-    }
+//     // chọn log thuộc vùng canh của phiên
+//     const inside: Array<{ idx: number; t: Date }> = [];
+//     for (let i = 0; i < unused.length; i++) {
+//       const t = unused[i];
+//       if (t >= guardStart && t <= guardEnd) inside.push({ idx: i, t });
+//     }
 
-    // đánh dấu đã dùng: xóa khỏi unused (xóa từ cuối để không lệch index)
-    for (const { idx } of inside.reverse()) unused.splice(idx, 1);
+//     // sort theo thời gian
+//     inside.sort((a, b) => a.t.getTime() - b.t.getTime());
 
-    result[s.code] = pairs;
-  }
-  // Log còn lại trong unused coi là nhiễu hoặc ngoài phiên → bỏ qua
-  return result;
-}
+//     // ghép cặp trong phạm vi phiên
+//     let pairs: SessionPair[] = [];
+//     if (inside.length >= 1) {
+//       const earliestIn = inside[0].t;
+//       const latestOut = inside[inside.length - 1].t;
+//       pairs = inside.length === 1
+//         ? [{ in: earliestIn }]
+//         : [{ in: earliestIn, out: latestOut }];
+//     }
+
+//     // đánh dấu đã dùng: xóa khỏi unused (xóa từ cuối để không lệch index)
+//     for (const { idx } of inside.reverse()) unused.splice(idx, 1);
+
+//     result[s.code] = pairs;
+//   }
+//   // Log còn lại trong unused coi là nhiễu hoặc ngoài phiên → bỏ qua
+//   return result;
+// }
 
 export function buildPairsBySessionFlexible(
   logs: Date[],
@@ -920,5 +962,8 @@ function parseFlexibleLocal(dateKey: string, s: string, tz: string): Date {
   const ss = m[3] ? Number(m[3]) : 0;
   return zonedTimeOrOverflowToUtc(dateKey, `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`, tz);
 }
+
+
+
 
 

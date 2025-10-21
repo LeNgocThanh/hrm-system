@@ -25,4 +25,8 @@ export class CreateShiftTypeDto {
   @ValidateNested()
   @Type(() => WeeklyRulesDto)
   weeklyRules!: WeeklyRulesDto;
+
+  @ApiPropertyOptional({ description: 'Chỉ cần chấm công 2 lần cả ngày', example: false })
+  @IsOptional()
+  isCheckTwoTimes?: boolean;
 }

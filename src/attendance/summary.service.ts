@@ -69,6 +69,7 @@ export class SummaryService {
         case 'HALF_AM': days.halfDaysAM++; days.presentDays++; break;
         case 'HALF_PM': days.halfDaysPM++; days.presentDays++; break;
         case 'LEAVE':   days.leaveDays++; days.presentDays++; break; 
+        case 'HOLIDAY': days.leaveDays++; days.presentDays++; break;
         case 'PRESENT': days.presentDays++; break;
         case 'ABSENT':  days.absentDays++; break;
       }

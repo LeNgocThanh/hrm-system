@@ -7,6 +7,8 @@ import { HydratedDocument } from 'mongoose';
 class DailySessionActual {
   @Prop() checkIn?: Date;
   @Prop() checkOut?: Date;
+  @Prop() firstIn?: Date;
+  @Prop() lastOut?: Date;
   @Prop() workedMinutes?: number; //số phút làm được tính công  
   @Prop() lateMinutes?: number;       // vào trễ so với session.start (+grace)
   @Prop() earlyLeaveMinutes?: number; // ra sớm so với session.end  (-grace)
@@ -26,7 +28,7 @@ export class AttendanceDaily extends Document {
   @Prop({ enum: WorkShiftType, required: true }) shiftType!: WorkShiftType;
 
   // Tóm tắt
-  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE'; // trạng thái chấm công ngày
+  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE' | 'HOLIDAY'; // trạng thái chấm công ngày
   @Prop() workedMinutes?: number;
   @Prop() lateMinutes?: number;
   @Prop() earlyLeaveMinutes?: number;

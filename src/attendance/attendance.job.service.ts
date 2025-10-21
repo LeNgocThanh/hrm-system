@@ -186,14 +186,13 @@ async runLogsOverNightToDailySmart(
   // === Xác định khoảng thời gian cần chạy ===
   let rangeFrom: string;
   let rangeTo: string;
+  console.log('from-to truyen vao', from, '-', to);
 
-  if (!from && !to) {
-    // Không truyền gì hoặc chỉ truyền userId -> mặc định tháng trước
+  if (!from && !to) {   
     const prev = monthRange(shiftMonthKey(isoMonthKey(nowInTz(TZ)), -1));
     rangeFrom = prev.from;
     rangeTo = prev.to;
-  } else {
-    // Có from/to: chuẩn hoá
+  } else {    
     rangeFrom = from!;
     rangeTo = to ?? from!;
   }
@@ -211,7 +210,9 @@ async runLogsOverNightToDailySmart(
 
   // === Chạy upsert Daily ===
   let upserts = 0;
+  console.log('from - to', rangeFrom, '-', rangeTo);
   const days = enumerateDateKeys(rangeFrom, rangeTo);
+  console.log('day', days);
 
   for (const dk of days) {
     if (targetUsers.length === 0) {

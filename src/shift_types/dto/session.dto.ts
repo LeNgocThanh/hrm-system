@@ -21,4 +21,24 @@ export class ShiftSessionDto {
   @IsOptional()
   @IsBoolean()
   required?: boolean = true;
+
+  @ApiPropertyOptional({ description: 'Phút cho phép vào trễ', example: 10 })
+  @IsOptional()
+  graceInMins?: number;
+
+  @ApiPropertyOptional({ description: 'Phút cho phép ra sớm', example: 10 })
+  @IsOptional()
+  graceOutMins?: number;  
+
+  @ApiPropertyOptional({ description: 'Thời gian nghỉ giữa phiên (phút)', example: 0 })
+  @IsOptional()
+  breakMinutes?: number;
+
+  @ApiPropertyOptional({ description: 'Phút cho phép vào sớm trước start', example: 15 })
+  @IsOptional()
+  maxCheckInEarlyMins?: number;
+
+  @ApiPropertyOptional({ description: 'Phút cho phép ra muộn sau end', example: 15 })
+  @IsOptional()
+  maxCheckOutLateMins?: number;
 }

@@ -107,23 +107,104 @@ export const OVERNIGHT_SHIFT: ShiftDefinition = {
   byDow: {    
     0: { sessions: [], required: false },   
     1: { sessions: [ 
-        { code: 'OV', start: '21:00', end: '26:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ]},
     2: { sessions: [ 
-        { code: 'OV', start: '22:00', end: '27:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180 },
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ]},
     3: { sessions: [ 
-        { code: 'OV', start: '22:00', end: '26:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180 },
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ]},
     4: { sessions: [ 
-        { code: 'OV', start: '21:00', end: '26:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180 },
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ]},
     
     5: { sessions: [ 
-        { code: 'OV', start: '21:00', end: '26:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180 },
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ], required: true },
     6: { sessions: [ 
-        { code: 'OV', start: '22:00', end: '27:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180 },
+        { code: 'OV', start: '22:00', end: '30:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+  }
+};
+
+export const ATT_1_SHIFT: ShiftDefinition = {
+  type: WorkShiftType.ATT_1,
+  tz: 'Asia/Bangkok',
+  byDow: {    
+    0: { sessions: [], required: false },   
+    1: { sessions: [ 
+        { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    2: { sessions: [ 
+         { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    3: { sessions: [ 
+         { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    4: { sessions: [ 
+        { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    
+    5: { sessions: [ 
+         { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ], required: true },
+    6: { sessions: [ 
+         { code: 'AM', start: '05:00', end: '13:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+  }
+};
+
+export const ATT_2_SHIFT: ShiftDefinition = {
+  type: WorkShiftType.ATT_2,
+  tz: 'Asia/Bangkok',
+  byDow: {    
+    0: { sessions: [], required: false },   
+    1: { sessions: [ 
+        { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    2: { sessions: [ 
+        { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    3: { sessions: [ 
+       { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    4: { sessions: [ 
+     { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    
+    5: { sessions: [ 
+       { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ], required: true },
+    6: { sessions: [ 
+        { code: 'AM', start: '06:00', end: '14:00', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+  }
+};
+
+export const ATT_3_SHIFT: ShiftDefinition = {
+  type: WorkShiftType.ATT_3,
+  tz: 'Asia/Bangkok',
+  byDow: {    
+    0: { sessions: [], required: false },   
+    1: { sessions: [ 
+        { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    2: { sessions: [ 
+       { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    3: { sessions: [ 
+       { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    4: { sessions: [ 
+      { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ]},
+    
+    5: { sessions: [ 
+        { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
+    ], required: true },
+    6: { sessions: [ 
+        { code: 'AM', start: '08:00', end: '16:30', required: true, graceInMins: 15, graceOutMins: 15, maxCheckInEarlyMins: 180, maxCheckOutLateMins: 180},
     ]},
   }
 };
@@ -133,11 +214,16 @@ export const SHIFT_REGISTRY: Record<WorkShiftType, ShiftDefinition> = {
   [WorkShiftType.REGULAR]: REGULAR_SHIFT,
   [WorkShiftType.ONLY_2_TO_6]: ONLY2TO6_SHIFT,
   [WorkShiftType.OVERNIGHT]: OVERNIGHT_SHIFT,
+  [WorkShiftType.ATT_1]: ATT_1_SHIFT,
+  [WorkShiftType.ATT_2]: ATT_2_SHIFT,
+  [WorkShiftType.ATT_3]: ATT_3_SHIFT,
 };
 
 export function resolveSessionsForDate(def: ShiftDefinition, dateKey: string): ShiftSession[] {
+ 
   const dow = getDowAtTz(dateKey, def.tz); // 0..6
   const rule = def.byDow[dow];
+ 
   return rule?.sessions ?? [];
 }
 
@@ -149,7 +235,7 @@ export function resolveIsCheckTwoTimesForShiftDefinition(def: ShiftDefinition): 
 function getDowAtTz(dateKey: string, tz: string): 0|1|2|3|4|5|6 {
   const d = toDateAtTz(dateKey, tz);        // 00:00 tại TZ đó (d dưới đây là Date UTC tương ứng)
   // Lưu ý: getUTCDay trả về dow theo UTC, nhưng d đã là “00:00 tại TZ → quy đổi sang UTC”, nên OK
-  return d.getUTCDay() as 0|1|2|3|4|5|6;    // 0=CN, 1=Thứ 2, ...
+  return d.getDay() as 0|1|2|3|4|5|6;    // 0=CN, 1=Thứ 2, ...
 }
 
 function toDateAtTz(dateKey: string, tz: string): Date {

@@ -7,20 +7,22 @@ import { SessionCode } from '../common/session-code.enum';
 export class ShiftSession {
   @Prop({ type: String, enum: Object.values(SessionCode), required: true })
   code!: SessionCode;
-
   @Prop({ type: String, required: true }) // 'HH:mm', ví dụ '08:30'
   start!: string;
-
   @Prop({ type: String, required: true }) // 'HH:mm', ví dụ '12:00'
   end!: string;
-
-  /** Phiên có bắt buộc không (để tính “đủ ngày”).
-   *  - T2–T6: AM & PM đều true
-   *  - T7: chỉ AM true
-   *  - CN: không có phiên
-   */
   @Prop({ type: Boolean, default: true })
-  required?: boolean;
+  required: boolean; // có tính công phiên này không (mặc định true)
+  @Prop()
+  graceInMins?: number;   // cho phép vào trễ
+  @Prop()
+  graceOutMins?: number;  // cho phép ra sớm
+  @Prop()
+  breakMinutes?: number; // thời gian nghỉ giữa phiên (nếu có)
+  @Prop()
+  maxCheckInEarlyMins?: number; // cho phép vào sớm (ví dụ: 15 phút) để hạn chế chấm công sớm quá
+  @Prop ()
+  maxCheckOutLateMins?: number;  
 }
 export const ShiftSessionSchema = SchemaFactory.createForClass(ShiftSession);
 
@@ -52,6 +54,9 @@ export class ShiftType {
 
   @Prop({ type: WeeklyRulesSchema, required: true })
   weeklyRules!: WeeklyRules;
+
+  @Prop({ type: Boolean, default: false })
+  isCheckTwoTimes?: boolean; // có phải chỉ cần chấm công 2 lần cả ngày
 }
 export type ShiftTypeDocument = ShiftType & Document;
 export const ShiftTypeSchema = SchemaFactory.createForClass(ShiftType);

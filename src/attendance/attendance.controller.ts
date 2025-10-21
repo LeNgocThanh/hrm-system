@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseInterceptors, UploadedFile, UsePipes, ValidationPipe, BadRequestException, Put } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseInterceptors, UploadedFile, UsePipes, ValidationPipe, BadRequestException, Put, Delete, Req } from '@nestjs/common';
 import { LogsService } from './logs.service';
 import { DailyService } from './daily.service';
 import { SummaryService } from './summary.service';
@@ -10,6 +10,8 @@ import { AttendanceDaily } from './schemas/attendance-daily.schema';
 import * as XLSX from 'xlsx';
 import { RunLogsToDailySmartDto } from './dto/jobs-logs-to-dailly';
 import { DaillyToMonthDto } from './dto/daillyToMonth.dto';
+import { HolidayService } from './holiday.service';
+import { QueryHolidaysDto, UpsertHolidayDto } from './dto/holiday.dto';
 
 @Controller('attendance')
 export class AttendanceController {
@@ -150,4 +152,24 @@ export class AttendanceJobController {
     const { userId, monthKey } = body || {};
     return this.jobService.runMonthlySummary(userId, monthKey);
   }
+}
+
+@Controller('calendar/holidays')
+export class HolidayController {
+constructor(private readonly svc: HolidayService) {}
+
+
+@Get()
+async list(@Query() q: QueryHolidaysDto) { return this.svc.list(q); }
+
+
+@Post()
+async upsert(@Body() dto: UpsertHolidayDto, @Req() req: any) {
+const userId = String(req?.user?._id || req?.userId || 'system');
+return this.svc.upsert(dto, userId);
+}
+
+
+@Delete(':id')
+async remove(@Param('id') id: string) { return this.svc.remove(id); }
 }
