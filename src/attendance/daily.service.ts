@@ -1,13 +1,26 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model } from 'mongoose';
+import { get, Model, Types } from 'mongoose';
 
 import { AttendanceDaily, AttendanceDailyDocument } from './schemas/attendance-daily.schema';
 import { AttendanceLog, AttendanceLogDocument } from './schemas/attendance-log.schema';
 import { WorkShiftType } from './common/work-shift-type.enum';
-import { SHIFT_REGISTRY, ShiftDefinition, ShiftSession, resolveSessionsForDate, resolveIsCheckTwoTimesForShiftDefinition } from './common/shift-definition';
+import { SHIFT_REGISTRY, ShiftDefinition, resolveSessionsForDate, resolveIsCheckTwoTimesForShiftDefinition } from './common/shift-definition';
 import { Holiday, HolidayDocument } from './schemas/holiday-exception.schema';
 import { HolidayService } from './holiday.service';
+
+import { UserPolicyBindingService } from 'src/user-policies/user-policies.service';
+import { UserPolicyType } from 'src/user-policies/common/user-policy-type.enum';
+import { ShiftTypesService } from 'src/shift_types/shift_types.service';
+import { ShiftType, WeeklyRules, ShiftSession } from 'src/shift_types/schemas/shift-type.schema';
+
+interface ListUserPolicyQueryDto {  
+  userId?: Types.ObjectId; 
+  policyType?: UserPolicyType;  
+  onDate?: string;  
+  page?: number;  
+  limit?: number;
+}
 
 interface UpsertOptions {
   allowWeekendWork?: boolean;
@@ -64,6 +77,8 @@ export class DailyService {
    
 
     private readonly holidaySvc: HolidayService,
+    private readonly userPolicyBindingSvc: UserPolicyBindingService,
+    private readonly shiftTypeSvc: ShiftTypesService,
   ) { }
 
   /** ------- Public APIs ------- */
@@ -90,30 +105,69 @@ export class DailyService {
     shiftType: WorkShiftType = WorkShiftType.REGULAR,
     opts?: UpsertOptions,
   ) {
-    const def = requireShift(shiftType);    
+    let querry : ListUserPolicyQueryDto = {};
+    querry.policyType = UserPolicyType.SHIFT_TYPE;
+    querry.userId = new Types.ObjectId(userId);
+    querry.onDate = dateKey;
+
+    const userShiftType = await this.userPolicyBindingSvc.findAll(querry);
+    let policyCode = 'REGULAR'
+    if(userShiftType.length > 0) {
+      policyCode = userShiftType[0].policyCode;
+    }
+    const shiftTypeDef = await this.shiftTypeSvc.findByCode(policyCode);
+    if(!shiftTypeDef) {
+      throw new Error(`Không tìm thấy định nghĩa ca làm việc cho code: ${policyCode}`);
+    }
+    const dow = getDow(dateKey, TZ);
+    let ShiftSessionsForDay: ShiftSession[] = [];
+    let isCheckTwoTimes = false;
+    if(shiftTypeDef) {
+      ShiftSessionsForDay = shiftTypeDef.weeklyRules[String(dow) as keyof WeeklyRules] ?? [];
+      isCheckTwoTimes = shiftTypeDef.isCheckTwoTimes || false;  
+    }
+    //const def = requireShift(shiftType);    
 
     // 1) Xác định khung thời gian lấy log cho ngày N
-    const daySessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
-    const hasOVToday = !!daySessions.find((s) => s.code === 'OV');
+    //const daySessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
+    const hasOVToday = ShiftSessionsForDay.find((s) => s.code === "OV") ? true : false;
+
+    console.log(`  → upsertByShiftDefinition for user=${userId} date=${dateKey} shiftType=${shiftType} (policy=${policyCode}) hasOVToday=${hasOVToday}`);
 
     const startOfN = zonedTimeToUtc(dateKey, '00:00:00', TZ);
     const endOfNDefault = zonedTimeToUtc(dateKey, '23:59:59', TZ);
 
     let endOfFetchN = endOfNDefault;
     if (hasOVToday) {
-      const ov = daySessions.find((s) => s.code === 'OV')!;
+      const ov = ShiftSessionsForDay.find((s) => s.code === "OV");;
       const endPlus = ov.maxCheckOutLateMins ?? 0;
       endOfFetchN = addMinutes(zonedTimeOrOverflowToUtc(dateKey, `${ov.end}:00`, TZ), endPlus);
     }
 
     // 2) Xét OV của ngày N-1 để loại bỏ logs "quá sớm"
     const prevDate = toPrevDateKey(dateKey, TZ);
-    const prevSessions = resolveSessionsForDate(def, prevDate) as ShiftSession[];
-    const hasOVPrev = !!prevSessions.find((s) => s.code === 'OV');
+    querry.onDate = prevDate;
+    const userShiftTypePre = await this.userPolicyBindingSvc.findAll(querry);
+    let policyCodePre = 'REGULAR'
+    if(userShiftTypePre.length > 0) {
+      policyCodePre = userShiftTypePre[0].policyCode;
+    }
+    const shiftTypeDefPre = await this.shiftTypeSvc.findByCode(policyCodePre);
+    if(!shiftTypeDefPre) {
+      throw new Error(`Không tìm thấy định nghĩa ca làm việc cho code: ${policyCode}`);
+    }
+    const dowPre = getDow(dateKey, TZ);
+    let ShiftSessionsForDayPre: ShiftSession[] = [];
+    
+    if(shiftTypeDefPre) {
+      ShiftSessionsForDayPre = shiftTypeDefPre.weeklyRules[String(dowPre) as keyof WeeklyRules] ?? [];
+    }
+    
+   const hasOVPrev = ShiftSessionsForDayPre.find((s) => s.code === "OV") ? true : false;
 
     let lowerBound = startOfN; // mốc nhỏ nhất để lấy log ngày N
     if (hasOVPrev) {
-      const prevOV = prevSessions.find((s) => s.code === 'OV')!;
+      const prevOV = ShiftSessionsForDayPre.find((s) => s.code === 'OV')!;
       const endPlusPrev = prevOV.maxCheckOutLateMins ?? 0;
       const prevOVEndPlus = addMinutes(
         zonedTimeOrOverflowToUtc(prevDate, `${prevOV.end}:00`, TZ),
@@ -128,14 +182,14 @@ export class DailyService {
       .sort({ timestamp: 1 })
       .lean<AttendanceLogDocument[]>();
 
-    const logTimes = rawLogs.map((x) => new Date(x.timestamp)); 
-    const isCheckTwoTimes = resolveIsCheckTwoTimesForShiftDefinition(def);   
+    const logTimes = rawLogs.map((x) => new Date(x.timestamp));     
+     
 
     // 4) Ghép cặp LINH HOẠT THEO PHIÊN
-    const pairsBySession = buildPairsBySessionFlexible(logTimes, daySessions, dateKey, TZ, isCheckTwoTimes);
+    const pairsBySession = buildPairsBySessionFlexible(logTimes, ShiftSessionsForDay, dateKey, TZ, isCheckTwoTimes);
 
     // 5) Tính worked/late/early theo từng session rồi tổng hợp
-    const agg = aggregateSessions(pairsBySession, daySessions, dateKey, TZ, opts);
+    const agg = aggregateSessions(pairsBySession, ShiftSessionsForDay, dateKey, TZ, opts);
 
     const holiday = await this.holidaySvc.findEffective(dateKey);
     if(holiday) {
@@ -222,12 +276,33 @@ export class DailyService {
     const userId = dto.userId;
     const dateKey = dto.dateKey;
     const tz = dto.tz || TZ;
-    const shiftType = dto.shiftType ?? WorkShiftType.REGULAR;
+
+    let querry : ListUserPolicyQueryDto = {};
+    querry.policyType = UserPolicyType.SHIFT_TYPE;
+    querry.userId = new Types.ObjectId(userId);
+    querry.onDate = dateKey;
+
+    const userShiftType = await this.userPolicyBindingSvc.findAll(querry);
+    let policyCode = 'REGULAR'
+    if(userShiftType.length > 0) {
+      policyCode = userShiftType[0].policyCode;
+    }
+    const shiftTypeDef = await this.shiftTypeSvc.findByCode(policyCode);
+    if(!shiftTypeDef) {
+      throw new Error(`Không tìm thấy định nghĩa ca làm việc cho code: ${policyCode}`);
+    }
+    const dow = getDow(dateKey, TZ);
+    let ShiftSessionsForDay: ShiftSession[] = [];
+    let isCheckTwoTimes = false;
+    if(shiftTypeDef) {
+      ShiftSessionsForDay = shiftTypeDef.weeklyRules[String(dow) as keyof WeeklyRules] ?? [];
+      isCheckTwoTimes = shiftTypeDef.isCheckTwoTimes || false;  
+    }
+    const shiftType = policyCode as WorkShiftType;
     const editNote = dto.editNote || '';
     const isManualEdit = true;
-
-    const def = requireShift(shiftType);
-    const sessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
+    
+    const sessions = ShiftSessionsForDay;
 
     // map hợp lệ code → session (case-insensitive)
     const byCode = new Map<string, ShiftSession>();
@@ -389,58 +464,7 @@ export function projectLegacySessions(perSession: NonNullable<AggregateResult['s
   return out;
 }
 
-// export function buildPairsBySessionFlexibleNew(
-//   logs: Date[],
-//   sessions: ShiftSession[],
-//   dateKey: string,
-//   tz: string,
-//   isCheckTwoTimes: boolean = false,
-// ): Record<string, SessionPair[]> {
-//   const result: Record<string, SessionPair[]> = {};
-//   const unused = [...logs]; // hồ log chưa dùng
-//   console.log(`  → Building pairs for sessions: ${sessions.map(s => s.code).join(', ')}, from logs: ${logs.map(t => t.toISOString()).join(', ')}`);
 
-//   for (const s of sessions) {
-
-//     const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
-//     const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
-
-
-//     const maxInEarly = s.maxCheckInEarlyMins ?? 0;
-//     const maxOutLate = s.maxCheckOutLateMins ?? 0;
-
-
-//     const guardStart = addMinutes(start, -maxInEarly);
-//     const guardEnd = addMinutes(end, +maxOutLate);
-
-//     // chọn log thuộc vùng canh của phiên
-//     const inside: Array<{ idx: number; t: Date }> = [];
-//     for (let i = 0; i < unused.length; i++) {
-//       const t = unused[i];
-//       if (t >= guardStart && t <= guardEnd) inside.push({ idx: i, t });
-//     }
-
-//     // sort theo thời gian
-//     inside.sort((a, b) => a.t.getTime() - b.t.getTime());
-
-//     // ghép cặp trong phạm vi phiên
-//     let pairs: SessionPair[] = [];
-//     if (inside.length >= 1) {
-//       const earliestIn = inside[0].t;
-//       const latestOut = inside[inside.length - 1].t;
-//       pairs = inside.length === 1
-//         ? [{ in: earliestIn }]
-//         : [{ in: earliestIn, out: latestOut }];
-//     }
-
-//     // đánh dấu đã dùng: xóa khỏi unused (xóa từ cuối để không lệch index)
-//     for (const { idx } of inside.reverse()) unused.splice(idx, 1);
-
-//     result[s.code] = pairs;
-//   }
-//   // Log còn lại trong unused coi là nhiễu hoặc ngoài phiên → bỏ qua
-//   return result;
-// }
 
 export function buildPairsBySessionFlexible(
   logs: Date[],
