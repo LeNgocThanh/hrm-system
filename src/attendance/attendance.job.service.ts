@@ -29,7 +29,7 @@ export class AttendanceJobService {
 
     const users: string[] = await this.distinctUsersByDate(yKey);
     for (const uid of users) {
-      await this.daily.upsertByShiftDefinition(uid, yKey, WorkShiftType.REGULAR, {
+      await this.daily.upsertByShiftDefinition(uid, yKey, {
         allowWeekendWork: true,
         halfThresholdMinutes: 180,
       });
@@ -75,7 +75,7 @@ export class AttendanceJobService {
     const days = enumerateDateKeys(f, t);
     if (userId) {
       for (const dk of days) {
-        await this.daily.upsertByShiftDefinition(userId, dk, WorkShiftType.REGULAR, {
+        await this.daily.upsertByShiftDefinition(userId, dk, {
           allowWeekendWork: true,
           halfThresholdMinutes: 180,
         });
@@ -85,7 +85,7 @@ export class AttendanceJobService {
       for (const dk of days) {
         const users = await this.distinctUsersByDate(dk);
         for (const uid of users) {
-          await this.daily.upsertByShiftDefinition(uid, dk, WorkShiftType.REGULAR, {
+          await this.daily.upsertByShiftDefinition(uid, dk, {
             allowWeekendWork: true,
             halfThresholdMinutes: 180,
           });
@@ -115,7 +115,7 @@ async runLogsToDailySmart(
   userId?: string,
   from?: string,
   to?: string,
-  shiftType?: WorkShiftType,
+ // shiftType?: string,
 ) {
   // === Xác định khoảng thời gian cần chạy ===
   let rangeFrom: string;
@@ -130,10 +130,7 @@ async runLogsToDailySmart(
     // Có from/to: chuẩn hoá
     rangeFrom = from!;
     rangeTo = to ?? from!;
-  }
-  if (!shiftType) {
-    shiftType = WorkShiftType.REGULAR;
-  }
+  } 
 
   // === Xác định danh sách user ===
   let targetUsers: string[] = [];
@@ -158,7 +155,7 @@ async runLogsToDailySmart(
       : (await this.distinctUsersByDate(dk)); // chỉ user thực sự có log ngày dk
 
     for (const uid of usersForDay) {
-      await this.daily.upsertByShiftDefinition(uid, dk, shiftType, {
+      await this.daily.upsertByShiftDefinition(uid, dk,  {
         allowWeekendWork: false,
         halfThresholdMinutes: 240,
       });
@@ -171,8 +168,7 @@ async runLogsToDailySmart(
     userId: userId || null,
     from: rangeFrom,
     to: rangeTo,
-    users: userId ? 1 : 'ALL',
-    shiftType,
+    users: userId ? 1 : 'ALL',    
     upserts,
   };
 }
@@ -180,8 +176,7 @@ async runLogsToDailySmart(
 async runLogsOverNightToDailySmart(
   userId?: string,
   from?: string,
-  to?: string,
-  shiftType?: WorkShiftType,
+  to?: string,  
 ) {
   // === Xác định khoảng thời gian cần chạy ===
   let rangeFrom: string;
@@ -195,10 +190,7 @@ async runLogsOverNightToDailySmart(
   } else {    
     rangeFrom = from!;
     rangeTo = to ?? from!;
-  }
-  if (!shiftType) {
-    shiftType = WorkShiftType.REGULAR;
-  }
+  }  
 
   // === Xác định danh sách user ===
   let targetUsers: string[] = [];
@@ -230,7 +222,7 @@ async runLogsOverNightToDailySmart(
         // Đã có dữ liệu, dữ liệu đã chỉnh sửa tay -> bỏ qua
         continue;
       }
-      await this.daily.upsertByShiftDefinition(uid, dk, shiftType, {
+      await this.daily.upsertByShiftDefinition(uid, dk, {
         allowWeekendWork: false,
         halfThresholdMinutes: 20,
       });
@@ -243,8 +235,7 @@ async runLogsOverNightToDailySmart(
     userId: userId || null,
     from: rangeFrom,
     to: rangeTo,
-    users: userId ? 1 : 'ALL',
-    shiftType,
+    users: userId ? 1 : 'ALL',    
     upserts,
   };
 }

@@ -10,7 +10,7 @@ export class UpdateDailyDto {
   checkOut?: Date;
 
   @IsOptional()
-  workShiftType?: WorkShiftType;
+  workShiftType?: string;
 
   @IsOptional()
   @IsNumber()

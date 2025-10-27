@@ -3,6 +3,7 @@ import { UserTimeEntriesService } from './user-time-entries.service';
 import { CreateUserTimeEntryDto } from './dto/create-user-time-entries.dto';
 import { UpdateUserTimeEntryDto } from './dto/update-user-time-entries.dto';
 import { CheckConflictDto } from './dto/check-conflict-user-time-entries.dto';
+import { QuerryUserTimeEntryDto } from './dto/querry-user-time-entry.dto';
 
 @Controller('user-time-entries')
 export class UserTimeEntriesController {
@@ -18,6 +19,11 @@ export class UserTimeEntriesController {
   @Get()
   async findAll() {
     return this.service.findAll();
+  }
+
+  @Get('by-user-and-time')
+  async findByUserAndTime(@Query() dto: QuerryUserTimeEntryDto) {
+    return this.service.findByUserAndTime(dto);
   }
 
   // 🔹 Get one

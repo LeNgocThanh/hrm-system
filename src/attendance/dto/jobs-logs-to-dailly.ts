@@ -16,8 +16,8 @@ export class RunLogsToDailySmartDto {
     example: 'REGULAR',
   })
   @IsOptional()
-  @IsEnum(WorkShiftType)
-  shiftType?: WorkShiftType;
+  @IsString()
+  shiftType?: string;
 
   @ApiPropertyOptional({
     description:

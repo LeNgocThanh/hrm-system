@@ -5,6 +5,7 @@ import { UserTimeEntry, UserTimeEntryDocument } from './schemas/user-time-entrie
 import { CreateUserTimeEntryDto } from './dto/create-user-time-entries.dto';
 import { UpdateUserTimeEntryDto } from './dto/update-user-time-entries.dto';
 import { CheckConflictDto } from './dto/check-conflict-user-time-entries.dto';
+import { QuerryUserTimeEntryDto } from './dto/querry-user-time-entry.dto';
 
 @Injectable()
 export class UserTimeEntriesService {
@@ -37,6 +38,22 @@ export class UserTimeEntriesService {
   // 🔹 Find all
   async findAll(): Promise<UserTimeEntry[]> {
     return this.userTimeEntryModel.find().exec();
+  }
+
+  async findByUserAndTime(dto: QuerryUserTimeEntryDto): Promise<UserTimeEntry[]> {
+    const query: any = {
+      userId: dto.userId,
+      // Logic kiểm tra khoảng thời gian giao nhau: Entry.startAt < Query.endAt VÀ Entry.endAt > Query.startAt
+      startAt: { $lt: dto.endAt },
+      endAt: { $gt: dto.startAt },
+    };
+
+    if (dto.type) {
+      query.type = dto.type;
+    }
+    
+    // Tìm và sắp xếp theo startAt
+    return this.userTimeEntryModel.find(query).sort({ startAt: 1 }).exec();
   }
 
   // 🔹 Find by id

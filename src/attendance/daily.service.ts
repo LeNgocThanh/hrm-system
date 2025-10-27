@@ -13,6 +13,7 @@ import { UserPolicyBindingService } from 'src/user-policies/user-policies.servic
 import { UserPolicyType } from 'src/user-policies/common/user-policy-type.enum';
 import { ShiftTypesService } from 'src/shift_types/shift_types.service';
 import { ShiftType, WeeklyRules, ShiftSession } from 'src/shift_types/schemas/shift-type.schema';
+import { SessionCode } from 'src/shift_types/common/session-code.enum';
 
 interface ListUserPolicyQueryDto {  
   userId?: Types.ObjectId; 
@@ -101,20 +102,30 @@ export class DailyService {
    */
   async upsertByShiftDefinition(
     userId: string,
-    dateKey: string, // 'YYYY-MM-DD' theo TZ
-    shiftType: WorkShiftType = WorkShiftType.REGULAR,
+    dateKey: string, // 'YYYY-MM-DD' theo TZ    
     opts?: UpsertOptions,
   ) {
     let querry : ListUserPolicyQueryDto = {};
     querry.policyType = UserPolicyType.SHIFT_TYPE;
     querry.userId = new Types.ObjectId(userId);
     querry.onDate = dateKey;
-
-    const userShiftType = await this.userPolicyBindingSvc.findAll(querry);
+    console.log('querry', querry);
+    let userShiftType = [];
+    try {
+     userShiftType = await this.userPolicyBindingSvc.findAll(querry);
+     console.log('findAll executed successfully');
+    }
+    catch (error) {
+      console.log('findAll execution failed');
+      console.error('Error occurred while executing findAll:', error);
+    }
+    console.log('userShiftType', userShiftType);
+    
     let policyCode = 'REGULAR'
     if(userShiftType.length > 0) {
       policyCode = userShiftType[0].policyCode;
     }
+    
     const shiftTypeDef = await this.shiftTypeSvc.findByCode(policyCode);
     if(!shiftTypeDef) {
       throw new Error(`Không tìm thấy định nghĩa ca làm việc cho code: ${policyCode}`);
@@ -132,7 +143,7 @@ export class DailyService {
     //const daySessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
     const hasOVToday = ShiftSessionsForDay.find((s) => s.code === "OV") ? true : false;
 
-    console.log(`  → upsertByShiftDefinition for user=${userId} date=${dateKey} shiftType=${shiftType} (policy=${policyCode}) hasOVToday=${hasOVToday}`);
+    console.log(`  → upsertByShiftDefinition for user=${userId} date=${dateKey} (policy=${policyCode}) hasOVToday=${hasOVToday}`);
 
     const startOfN = zonedTimeToUtc(dateKey, '00:00:00', TZ);
     const endOfNDefault = zonedTimeToUtc(dateKey, '23:59:59', TZ);
@@ -191,54 +202,56 @@ export class DailyService {
     // 5) Tính worked/late/early theo từng session rồi tổng hợp
     const agg = aggregateSessions(pairsBySession, ShiftSessionsForDay, dateKey, TZ, opts);
 
-    const holiday = await this.holidaySvc.findEffective(dateKey);
-    if(holiday) {
-      await this.dailyModel.updateOne(
-      { userId, dateKey },
-      {
-        $set: {
-          userId,
-          dateKey,
-          shiftType,
-          workedCheckIn: agg.workedCheckIn,
-          hourWork: 0,
-          workedMinutes: 0,
-          lateMinutes: 0,
-          earlyLeaveMinutes: 0,
-          status: 'HOLIDAY',
-          sessions: agg.sessions, // nếu schema có
-          ...(function () {
-            const legacy = projectLegacySessions(agg.sessions ?? []);
-            const set: any = {};
-            if (legacy.am) {
-              const amSession = legacy.am;
-              amSession.earlyLeaveMinutes = 0;
-              amSession.lateMinutes = 0;
-              amSession.workedMinutes = 0;
-              set.am = amSession; 
-            }
-            if (legacy.pm) {
-              const pmSession = legacy.pm;
-              pmSession.earlyLeaveMinutes = 0;
-              pmSession.lateMinutes = 0;
-              pmSession.workedMinutes = 0;
-              set.pm = pmSession; 
-            }
-            if (legacy.ov) {
-              const ovSession = legacy.ov;
-              ovSession.earlyLeaveMinutes = 0;
-              ovSession.lateMinutes = 0;
-              ovSession.workedMinutes = 0;
-              set.ov = legacy.ov;
-            }
-            return set;
-          })(),
-        },
-      },
-      { upsert: true },
-    );
-    }
-    else {
+     const holiday = await this.holidaySvc.findEffective(dateKey);
+     if(holiday) {
+      agg.status = 'HOLIDAY';
+     }
+    //   await this.dailyModel.updateOne(
+    //   { userId, dateKey },
+    //   {
+    //     $set: {
+    //       userId,
+    //       dateKey,
+    //       shiftType : policyCode,
+    //       workedCheckIn: agg.workedCheckIn,
+    //       hourWork: 0,
+    //       workedMinutes: 0,
+    //       lateMinutes: 0,
+    //       earlyLeaveMinutes: 0,
+    //       status: 'HOLIDAY',
+    //       sessions: agg.sessions, // nếu schema có
+    //       ...(function () {
+    //         const legacy = projectLegacySessions(agg.sessions ?? []);
+    //         const set: any = {};
+    //         if (legacy.am) {
+    //           const amSession = legacy.am;
+    //           amSession.earlyLeaveMinutes = 0;
+    //           amSession.lateMinutes = 0;
+    //           amSession.workedMinutes = 0;
+    //           set.am = amSession; 
+    //         }
+    //         if (legacy.pm) {
+    //           const pmSession = legacy.pm;
+    //           pmSession.earlyLeaveMinutes = 0;
+    //           pmSession.lateMinutes = 0;
+    //           pmSession.workedMinutes = 0;
+    //           set.pm = pmSession; 
+    //         }
+    //         if (legacy.ov) {
+    //           const ovSession = legacy.ov;
+    //           ovSession.earlyLeaveMinutes = 0;
+    //           ovSession.lateMinutes = 0;
+    //           ovSession.workedMinutes = 0;
+    //           set.ov = legacy.ov;
+    //         }
+    //         return set;
+    //       })(),
+    //     },
+    //   },
+    //   { upsert: true },
+    // );
+    // }
+    // else {
     // 6) Upsert AttendanceDaily
     await this.dailyModel.updateOne(
       { userId, dateKey },
@@ -246,7 +259,7 @@ export class DailyService {
         $set: {
           userId,
           dateKey,
-          shiftType,
+          shiftType: policyCode,
           workedCheckIn: agg.workedCheckIn,
           hourWork: agg.hourWork,
           workedMinutes: agg.workedMinutes,
@@ -265,7 +278,7 @@ export class DailyService {
         },
       },
       { upsert: true },
-    ); }
+    ); 
   }
 
 
@@ -386,14 +399,13 @@ export class DailyService {
   async recomputeRange(
     userId: string | undefined,
     from: string,
-    to: string,
-    shiftType: WorkShiftType = WorkShiftType.REGULAR,
+    to: string,    
   ) {
     const days = enumerateDateKeys(from, to);
     let count = 0;
     if (userId) {
       for (const dk of days) {
-        await this.upsertByShiftDefinition(userId, dk, shiftType);
+        await this.upsertByShiftDefinition(userId, dk);
         count++;
       }
     } else {
@@ -404,7 +416,7 @@ export class DailyService {
           timestamp: { $gte: startUtc, $lte: endUtc },
         }) as any;
         for (const uid of users) {
-          await this.upsertByShiftDefinition(String(uid), dk, shiftType);
+          await this.upsertByShiftDefinition(String(uid), dk);
           count++;
         }
       }
@@ -476,44 +488,80 @@ export function buildPairsBySessionFlexible(
   const result: Record<string, SessionPair[]> = {};
   // init rỗng cho mọi phiên để nhất quán schema trả về
   for (const s of sessions) result[s.code] = [];
-
-  // ================= CHẾ ĐỘ 2 LẦN / NGÀY (AM/PM) =================
+  
   if (isCheckTwoTimes) {
-    const byCode = new Map<string, ShiftSession>();
-    for (const s of sessions) byCode.set(s.code.toLowerCase(), s);
-    const am = byCode.get('am');
-    const pm = byCode.get('pm');
+   const shiftSessions = sessions
+        .filter((s): s is ShiftSession => !!s) // Lọc bỏ ca null/undefined nếu có
+        .map(s => {
+            // Chuyển đổi start/end của ca sang Date object (UTC)
+            const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
+            const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
 
-    const sorted = [...logs].sort((a, b) => a.getTime() - b.getTime());
-    if (sorted.length === 0) return result;
+            // Chỉ giữ lại các ca có start và end hợp lệ
+            if (!start || !end) return null;
 
-    const earliest = sorted[0];
-    const latest = sorted[sorted.length - 1];
+            return {
+                code: s.code,
+                start: start,
+                end: end,
+            };
+        })
+        .filter((s): s is { code: SessionCode; start: Date; end: Date } => !!s); // Lọc bỏ các ca không hợp lệ
 
-    const amEnd = am ? zonedTimeOrOverflowToUtc(dateKey, `${am.end}:00`, tz) : undefined;
-    const pmStart = pm ? zonedTimeOrOverflowToUtc(dateKey, `${pm.start}:00`, tz) : undefined;
+    // 2. Sắp xếp logs và xác định earliest/latest
+    const sortedLogs = [...logs].sort((a, b) => a.getTime() - b.getTime());
+    if (sortedLogs.length === 0 || shiftSessions.length === 0) return result;
 
-    const hasLogLtAmEnd = !!(amEnd && sorted.find(t => t.getTime() < amEnd.getTime()));
-    const hasLogGtAmEnd = !!(amEnd && sorted.find(t => t.getTime() > amEnd.getTime()));
-    const hasLogGtPmStart = !!(pmStart && sorted.find(t => t.getTime() > pmStart.getTime()));
+    const earliestLog = sortedLogs[0];
+    const latestLog = sortedLogs[sortedLogs.length - 1];
 
-    // Trường hợp 1: Có AM và có log < AM.end → earliest là AM.firstIn
-    if (am && hasLogLtAmEnd) {
-      const amIn = earliest;
-      const amOut = hasLogGtAmEnd ? amEnd! : latest; // có log > AM.end → out = AM.end; ngược lại out = log lớn nhất
-      result[am.code] = [{ in: amIn, out: amOut }];
-
-      // Nếu có AM.end và còn log > PM.start → PM.firstIn = PM.start; PM.lastOut = latest
-      if (pm && hasLogGtPmStart) {
-        result[pm.code] = [{ in: pmStart!, out: latest }];
-      }
-      return result;
+    // 3. Lọc ra các ca có giao điểm với khoảng thời gian chấm công
+    const intersectingShifts = shiftSessions.filter(shift => {
+        // Giao điểm tồn tại nếu:
+        // (Shift.start < Log.latest) VÀ (Shift.end > Log.earliest)
+        return shift.start.getTime() < latestLog.getTime() && 
+               shift.end.getTime() > earliestLog.getTime();
+    });
+    
+    // Nếu không có ca nào có giao điểm, không làm gì cả
+    if (intersectingShifts.length === 0) {
+        return result;
     }
 
-    // Trường hợp 2: Không có log < AM.end (hoặc không có AM) → earliest là PM.firstIn
-    if (pm) {
-      result[pm.code] = [{ in: earliest, out: latest }];
+    // 4. Gán Earliest/Latest cho ca đầu tiên và cuối cùng có giao điểm
+    
+    // Ca đầu tiên có giao điểm (do shiftSessions đã sắp xếp nên [0] là ca đầu tiên)
+    const firstShift = intersectingShifts[0];
+    // Ca cuối cùng có giao điểm
+    const lastShift = intersectingShifts[intersectingShifts.length - 1];
+
+    // 5. Xây dựng kết quả (Result Construction)
+    for (const shift of intersectingShifts) {
+        let finalIn: Date;
+        let finalOut: Date;
+
+        if (shift.code === firstShift.code) {
+            // Ca đầu tiên: Lấy earliestLog làm IN
+            finalIn = earliestLog;
+        } else {
+            // Ca giữa: Lấy start của ca đó làm IN
+            finalIn = shift.start;
+        }
+
+        if (shift.code === lastShift.code) {
+            // Ca cuối cùng: Lấy latestLog làm OUT
+            finalOut = latestLog;
+        } else {
+            // Ca giữa: Lấy end của ca đó làm OUT
+            finalOut = shift.end;
+        }
+
+        // Đảm bảo In luôn nhỏ hơn Out (hoặc bằng nếu cùng một mốc)
+        if (finalIn.getTime() <= finalOut.getTime()) {
+            result[shift.code] = [{ in: finalIn, out: finalOut }];
+        }
     }
+
     return result;
   }
 
@@ -573,8 +621,9 @@ export function aggregateSessions(
   for (const s of sessions) {
     const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
     const end = zonedTimeOrOverflowToUtc(dateKey, `${s.end}:00`, tz);
-
-    const workHour = minutesBetween(start, end);
+    let workbreakMins = 0;
+    workbreakMins = s.breakMinutes ?? 0;
+    const workHour = minutesBetween(start, end) - workbreakMins;
 
     const pairs = pairsBySession[s.code] || [];
     const closedPairs = pairs.filter(p => !!p.out && p.in !== p.out);
@@ -586,6 +635,7 @@ export function aggregateSessions(
       worked += Math.max(0, overlappedMinutes(inT, outT, start, end));
       workedCheckIn += Math.max(0, minutesBetween(inT,outT));
     }
+    worked = worked > workbreakMins ? (worked-workbreakMins) : worked; // max = workHour
 
     let late = 0;
     let early = 0;

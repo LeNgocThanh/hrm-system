@@ -125,13 +125,13 @@ export class AttendanceJobController {
 
   @Post('runLogsToDailyManual')
   async runLogsToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
-    const { userId, from, to, shiftType } = dto || {};
-    return this.jobService.runLogsToDailySmart(userId, from, to, shiftType);
+    const { userId, from, to } = dto || {};
+    return this.jobService.runLogsToDailySmart(userId, from, to);
   }
 
   @Post('runLogsOverNightToDailyManual')
   async runLogsOverNightToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
-    const { userId, from, to, shiftType } = dto || {};
+    const { userId, from, to } = dto || {};
     return this.jobService.runLogsOverNightToDailySmart(userId, from, to);
   }
 

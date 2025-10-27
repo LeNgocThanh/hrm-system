@@ -25,7 +25,7 @@ class DailySessionActual {
 export class AttendanceDaily extends Document {
   @Prop({ required: true }) userId!: string;
   @Prop({ required: true }) dateKey!: string; // 'YYYY-MM-DD' theo tz local
-  @Prop({ enum: WorkShiftType, required: true }) shiftType!: WorkShiftType;
+  @Prop({ required: true }) shiftType!: string;
 
   // Tóm tắt
   @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE' | 'HOLIDAY'; // trạng thái chấm công ngày

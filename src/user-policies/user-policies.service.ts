@@ -6,6 +6,7 @@ import { CreateUserPolicyBindingDto } from './dto/create-user-policy-binding.dto
 import { UpdateUserPolicyBindingDto } from './dto/update-policy-binding.dto';
 import { ListUserPolicyQueryDto } from './dto/list-user-policy-query.dto';
 import { ResolveUserPolicyQueryDto } from './dto/resolve-user-policy-query.dto';
+
 // Bạn có thể giữ lại các hàm này nếu chúng hữu ích cho việc chuẩn hóa/kiểm tra logic backend
 // import { containsDate, normFrom, normTo, TO_MAX } from '../common/effective-range';
 
@@ -33,10 +34,9 @@ export class UserPolicyBindingService {
    */
   async findAll(query: ListUserPolicyQueryDto): Promise<UserPolicyBindingDocument[]> {
     const { userId, policyType, onDate, page = 1, limit = 20 } = query;
-    const findQuery: Record<string, any> = {};
-
+    const findQuery: Record<string, any> = {};    
     if (userId) {
-      findQuery.userId = userId;
+      findQuery.userId = userId.toString();
     }
     if (policyType) {
       findQuery.policyType = policyType;
@@ -46,9 +46,7 @@ export class UserPolicyBindingService {
     if (onDate) {
       // onDate đã được xác thực là chuỗi YYYY-MM-DD, không cần dùng dayjs để định dạng lại.
       const dateString = onDate;
-
-      // Điều kiện tìm kiếm: (effectiveFrom <= onDate) AND (effectiveTo >= onDate)
-      // Mongoose/MongoDB sẽ so sánh chuỗi YYYY-MM-DD an toàn theo thứ tự từ điển.
+     
       findQuery.$and = [
         // effectiveFrom <= onDate (hoặc effectiveFrom không tồn tại/null)
         { $or: [
@@ -62,6 +60,7 @@ export class UserPolicyBindingService {
         ]}
       ];
     }
+    console.log('findQuery', findQuery);
 
     return this.userPolicyBindingModel
       .find(findQuery)
