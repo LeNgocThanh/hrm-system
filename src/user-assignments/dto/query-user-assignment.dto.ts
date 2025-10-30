@@ -1,10 +1,15 @@
-import { IsBoolean, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsMongoId, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class QueryUserAssignmentDto {
   @IsOptional()
   @IsMongoId()
   userId?: Types.ObjectId;
+
+  @IsOptional()
+  @ValidateIf(o => o.userCode !== null)
+  @IsString()
+  userCode?: string | null;
 
   @IsOptional()
   @IsMongoId()

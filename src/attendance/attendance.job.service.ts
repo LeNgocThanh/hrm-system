@@ -202,21 +202,18 @@ async runLogsOverNightToDailySmart(
 
   // === Chạy upsert Daily ===
   let upserts = 0;
-  console.log('from - to', rangeFrom, '-', rangeTo);
   const days = enumerateDateKeys(rangeFrom, rangeTo);
-  console.log('day', days);
 
   for (const dk of days) {
-    if (targetUsers.length === 0) {
-      // Không có user nào có log ngày này -> bỏ qua
-      continue;
-    }
+    // if (targetUsers.length === 0) {     
+    //   continue;
+    // }
     // Nếu chạy ALL users, có thể lọc lại theo từng ngày để tránh upsert thừa:
     const usersForDay = userId
       ? targetUsers
       : (await this.distinctUsersByDate(dk)); // chỉ user thực sự có log ngày dk
 
-    for (const uid of usersForDay) {
+    for (const uid of targetUsers) {
       const daily = await this.daily.findOne(uid, dk);
       if (daily && daily.isManualEdit) {
         // Đã có dữ liệu, dữ liệu đã chỉnh sửa tay -> bỏ qua

@@ -69,6 +69,21 @@ export class UserAssignmentsService {
     return userAssignment;
   }
 
+   async findByCode(code: string): Promise<UserAssignment> {
+    const userAssignment = await this.userAssignmentModel
+      .findOne({userCode: code})
+      .populate('userId', 'username email firstName lastName')
+      .populate('organizationId', 'name')
+      .populate('positionId', 'name')
+      .populate('roleIds', 'name')
+      .exec();
+
+    if (!userAssignment) {
+      throw new NotFoundException(`User assignment with userCode ${code} not found`);
+    }
+    return userAssignment;
+  }
+
   async findByUserId(userId: string): Promise<UserAssignment[]> {
     return this.userAssignmentModel
       .find({ userId: userId })

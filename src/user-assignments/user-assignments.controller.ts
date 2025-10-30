@@ -42,6 +42,11 @@ export class UserAssignmentsController {
     return this.userAssignmentsService.findOne(id);
   }
 
+  @Get(':code')
+  findByCode(@Param('code') code: string) {
+    return this.userAssignmentsService.findByCode(code);
+  }
+
   @Get('user/:userId')
   findByUserId(@Param('userId') userId: string) {
     return this.userAssignmentsService.findByUserId(userId);

@@ -9,6 +9,9 @@ export class UserAssignment {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true })
   userId: Types.ObjectId;
 
+  @Prop({ unique: true, sparse: true })
+  userCode?: string | null;
+
   @Prop({ type: Types.ObjectId, ref: 'Organization', required: true })
   organizationId: Types.ObjectId;
 

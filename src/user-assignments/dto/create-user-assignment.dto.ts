@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsDate, IsMongoId, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsDate, IsMongoId, IsOptional, IsString, ValidateIf } from 'class-validator';
 import { Types } from 'mongoose';
 
 export class CreateUserAssignmentDto {
@@ -7,6 +7,11 @@ export class CreateUserAssignmentDto {
 
   @IsMongoId()
   organizationId: Types.ObjectId;
+
+  @IsOptional()  
+  @ValidateIf(o => o.userCode !== null)  
+  @IsString()  
+  userCode?: string | null;
 
   // Đã xoá departmentId
 

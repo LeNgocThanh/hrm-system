@@ -118,6 +118,13 @@ export class DailyService {
     querry.userId = new Types.ObjectId(userId);
     querry.onDate = dateKey;
     
+    const dataAlreadyInDb = await this.dailyModel.findOne({ userId, dateKey }).lean();
+    const isManualEdit = dataAlreadyInDb?.isManualEdit || false;
+    if(isManualEdit) {
+      // Không ghi đè dữ liệu đã chỉnh sửa tay
+      return;
+    }
+    
     let userShiftType = [];
     try {
      userShiftType = await this.userPolicyBindingSvc.findAll(querry);
@@ -253,7 +260,7 @@ export class DailyService {
     let querry : ListUserPolicyQueryDto = {};
     querry.policyType = UserPolicyType.SHIFT_TYPE;
     querry.userId = new Types.ObjectId(userId);
-    querry.onDate = dateKey;
+    querry.onDate = dateKey;    
 
     const userShiftType = await this.userPolicyBindingSvc.findAll(querry);
     let policyCode = 'REGULAR'
