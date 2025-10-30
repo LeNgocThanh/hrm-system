@@ -23,6 +23,14 @@ interface ListUserPolicyQueryDto {
   limit?: number;
 }
 
+interface UpsertByShiftOverrideDto {
+  userId: string;
+  dateKey: string;        // YYYY-MM-DD
+  shiftTypeCode: string;  // ví dụ "HC"
+  tz?: string;
+  editNote?: string;
+}
+
 interface UpsertOptions {
   allowWeekendWork?: boolean;
   halfThresholdMinutes?: number; // ngưỡng chấm HALF
@@ -118,10 +126,12 @@ export class DailyService {
     catch (error) {
       console.log('findAll execution failed');
       console.error('Error occurred while executing findAll:', error);
-    }
-    console.log('userShiftType', userShiftType);
+    }    
     
-    let policyCode = 'REGULAR'
+    let policyCode = 'REGULAR';
+    if (userShiftType.length === 0) {
+      return this.upsertByFirstInLastOut(userId, dateKey);
+    }
     if(userShiftType.length > 0) {
       policyCode = userShiftType[0].policyCode;
     }
@@ -153,7 +163,7 @@ export class DailyService {
       endOfFetchN = addMinutes(zonedTimeOrOverflowToUtc(dateKey, `${ov.end}:00`, TZ), endPlus);
     }
 
-    // 2) Xét OV của ngày N-1 để loại bỏ logs "quá sớm"
+    // 2) Xét OV của ngày N-1 để loại bỏ logs có thể thuộc về OV ngày N-1
     const prevDate = toPrevDateKey(dateKey, TZ);
     querry.onDate = prevDate;
     const userShiftTypePre = await this.userPolicyBindingSvc.findAll(querry);
@@ -174,7 +184,7 @@ export class DailyService {
     
    const hasOVPrev = ShiftSessionsForDayPre.find((s) => s.code === "OV") ? true : false;
 
-    let lowerBound = startOfN; // mốc nhỏ nhất để lấy log ngày N
+    let lowerBound = startOfN; // mốc nhỏ nhất để lấy log ngày N gán đầu tiên là 00:00:00
     if (hasOVPrev) {
       const prevOV = ShiftSessionsForDayPre.find((s) => s.code === 'OV')!;
       const endPlusPrev = prevOV.maxCheckOutLateMins ?? 0;
@@ -182,7 +192,7 @@ export class DailyService {
         zonedTimeOrOverflowToUtc(prevDate, `${prevOV.end}:00`, TZ),
         - endPlusPrev,
       );
-      if (prevOVEndPlus > lowerBound) lowerBound = prevOVEndPlus;
+      if (prevOVEndPlus > lowerBound) lowerBound = prevOVEndPlus; // gán lại mốc nhỏ nhất lấy log (chú ý tránh mất log ca sau do cộng thêm thời gian cho phép ra muộn )
     }
 
     // 3) Fetch logs theo cửa sổ [lowerBound, endOfFetchN]
@@ -601,7 +611,7 @@ export function buildPairsBySessionFlexible(
                 end: end,
             };
         })
-        .filter((s): s is { code: SessionCode; start: Date; end: Date } => !!s); // Lọc bỏ các ca không hợp lệ
+        .filter((s): s is { code: SessionCode; start: Date; end: Date } => !!s); // Lọc bỏ các ca không hợp lệ không thuộc SessionCode (cho an toàn)
 
     // 2. Sắp xếp logs và xác định earliest/latest
     const sortedLogs = [...logs].sort((a, b) => a.getTime() - b.getTime());
@@ -623,8 +633,7 @@ export function buildPairsBySessionFlexible(
         return result;
     }
 
-    // 4. Gán Earliest/Latest cho ca đầu tiên và cuối cùng có giao điểm
-    
+      
     // Ca đầu tiên có giao điểm (do shiftSessions đã sắp xếp nên [0] là ca đầu tiên)
     const firstShift = intersectingShifts[0];
     // Ca cuối cùng có giao điểm
