@@ -3,7 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { FilterQuery, Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
-import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto';
+import { CreateUserDto, UpdateUserDto, UserResponseDto, UserWithOrgResponseDto } from './dto';
 import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
 import { OrganizationsService } from 'src/organizations/organizations.service';
 
@@ -30,9 +30,7 @@ export class UsersService {
 
   async findByOrganization(userId: string, roles: any[]): Promise<UserResponseDto[]> {
     const filter: FilterQuery<UserResponseDto> = {};   
-    const moduleNames = ['All', 'User'];
-    console.log('Roles:', roles);
-    console.log('User ID:', userId);
+    const moduleNames = ['All', 'User'];    
     // Hàm tiện ích để kiểm tra quyền
     const hasPermission = (action: string) => {
       return roles.some(scope =>
@@ -51,8 +49,7 @@ export class UsersService {
 
     // 2. Kiểm tra quyền "read"
     if (hasPermission('read')) {
-      // Có quyền read => get toàn bộ cây tổ chức
-      console.log('Fetching users have read:', userId);
+      // Có quyền read => get toàn bộ cây tổ chức      
       const userAssignments = await this.userAssignmentsService.findByUserId(userId);
       const userOrgIds = userAssignments.map(a => a.organizationId._id.toString());
 
@@ -79,10 +76,44 @@ export class UsersService {
     return [];    
   }
 
+  async findByOrganizationWithInfo(userId: string, roles: any[]): Promise<UserWithOrgResponseDto[]> {
+  // Tái sử dụng API gốc để lấy danh sách user theo quyền
+  const users = await this.findByOrganization(userId, roles);
+
+  const enrichedUsers: UserWithOrgResponseDto[] = [];
+
+  for (const user of users) {
+    // Tìm assignment chính của user
+    const userAssignments = await this.userAssignmentsService.findByUserId(user._id.toString());
+    const primaryAssignment = userAssignments.find(a => a.isActive && a.isPrimary);
+
+    if (primaryAssignment) {
+      const orgId = primaryAssignment.organizationId._id.toString();
+      const org = await this.organizationsService.findOne(orgId);
+
+      enrichedUsers.push({
+        ...user,
+        organizationId: org?._id?.toString(),
+        organizationName: org?.name ?? null,
+      });
+    } else {
+      // Nếu không có assignment chính, vẫn push user để giữ danh sách đầy đủ
+      enrichedUsers.push({
+        ...user,
+        organizationId: null,
+        organizationName: null,
+      });
+    }
+  }
+
+  return enrichedUsers;
+}
+
+
   async findOne(id: string): Promise<UserResponseDto> {
     const user = await this.userModel.findById(id).exec();
     return user?.toObject() as unknown as UserResponseDto;
-  }
+  }  
 
   async update(id: string, updateUserDto: UpdateUserDto): Promise<UserResponseDto> {
     // Hash password if it's being updated

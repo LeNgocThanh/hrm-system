@@ -109,7 +109,7 @@ export class DailyService {
     querry.policyType = UserPolicyType.SHIFT_TYPE;
     querry.userId = new Types.ObjectId(userId);
     querry.onDate = dateKey;
-    console.log('querry', querry);
+    
     let userShiftType = [];
     try {
      userShiftType = await this.userPolicyBindingSvc.findAll(querry);
@@ -137,13 +137,11 @@ export class DailyService {
       ShiftSessionsForDay = shiftTypeDef.weeklyRules[String(dow) as keyof WeeklyRules] ?? [];
       isCheckTwoTimes = shiftTypeDef.isCheckTwoTimes || false;  
     }
-    //const def = requireShift(shiftType);    
+     
 
     // 1) Xác định khung thời gian lấy log cho ngày N
     //const daySessions = resolveSessionsForDate(def, dateKey) as ShiftSession[];
-    const hasOVToday = ShiftSessionsForDay.find((s) => s.code === "OV") ? true : false;
-
-    console.log(`  → upsertByShiftDefinition for user=${userId} date=${dateKey} (policy=${policyCode}) hasOVToday=${hasOVToday}`);
+    const hasOVToday = ShiftSessionsForDay.find((s) => s.code === "OV") ? true : false;   
 
     const startOfN = zonedTimeToUtc(dateKey, '00:00:00', TZ);
     const endOfNDefault = zonedTimeToUtc(dateKey, '23:59:59', TZ);
@@ -206,53 +204,7 @@ export class DailyService {
      if(holiday) {
       agg.status = 'HOLIDAY';
      }
-    //   await this.dailyModel.updateOne(
-    //   { userId, dateKey },
-    //   {
-    //     $set: {
-    //       userId,
-    //       dateKey,
-    //       shiftType : policyCode,
-    //       workedCheckIn: agg.workedCheckIn,
-    //       hourWork: 0,
-    //       workedMinutes: 0,
-    //       lateMinutes: 0,
-    //       earlyLeaveMinutes: 0,
-    //       status: 'HOLIDAY',
-    //       sessions: agg.sessions, // nếu schema có
-    //       ...(function () {
-    //         const legacy = projectLegacySessions(agg.sessions ?? []);
-    //         const set: any = {};
-    //         if (legacy.am) {
-    //           const amSession = legacy.am;
-    //           amSession.earlyLeaveMinutes = 0;
-    //           amSession.lateMinutes = 0;
-    //           amSession.workedMinutes = 0;
-    //           set.am = amSession; 
-    //         }
-    //         if (legacy.pm) {
-    //           const pmSession = legacy.pm;
-    //           pmSession.earlyLeaveMinutes = 0;
-    //           pmSession.lateMinutes = 0;
-    //           pmSession.workedMinutes = 0;
-    //           set.pm = pmSession; 
-    //         }
-    //         if (legacy.ov) {
-    //           const ovSession = legacy.ov;
-    //           ovSession.earlyLeaveMinutes = 0;
-    //           ovSession.lateMinutes = 0;
-    //           ovSession.workedMinutes = 0;
-    //           set.ov = legacy.ov;
-    //         }
-    //         return set;
-    //       })(),
-    //     },
-    //   },
-    //   { upsert: true },
-    // );
-    // }
-    // else {
-    // 6) Upsert AttendanceDaily
+    
     await this.dailyModel.updateOne(
       { userId, dateKey },
       {
@@ -280,8 +232,6 @@ export class DailyService {
       { upsert: true },
     ); 
   }
-
-
   /**
    * Cập nhật thủ công checkIn/checkOut rồi recompute theo shift.
    */
@@ -336,9 +286,7 @@ export class DailyService {
       let outDate: Date | undefined;
 
       if (t.checkIn) inDate = parseFlexibleLocal(dateKey, t.checkIn, tz);
-      if (t.checkOut) outDate = parseFlexibleLocal(dateKey, t.checkOut, tz);
-
-      console.log(`  → Manual input for session ${session.code}: checkIn=${t.checkIn} (${inDate?.toISOString()}) checkOut=${t.checkOut} (${outDate?.toISOString()})`);
+      if (t.checkOut) outDate = parseFlexibleLocal(dateKey, t.checkOut, tz);      
       
       const arr: SessionPair[] = [];
       if (inDate && outDate && outDate < inDate) {
@@ -359,8 +307,6 @@ export class DailyService {
 
       pairsBySession[session.code] = arr;
     }
-    console.log(`  → Manual pairsBySession: ${JSON.stringify(pairsBySession)}`, ' ', sessions, ' ', dto.times);
-
     const agg = aggregateSessions(pairsBySession, sessions, dateKey, tz, { halfThresholdMinutes:  dto?.['halfThresholdMinutes' as any] });
 
     await this.dailyModel.updateOne(
@@ -394,6 +340,155 @@ export class DailyService {
     );
   }
 
+  async upsertTimesNoSession(dto: UpsertTimesDto) {
+  const userId = dto.userId;
+  const dateKey = dto.dateKey;
+  const tz = dto.tz || TZ;
+
+  const editNote = dto.editNote || '';
+  const isManualEdit = true;
+
+  // 1) Build pairs theo đúng những gì người dùng nhập; không tra sessions định nghĩa
+  const pairsByCode: Record<string, SessionPair[]> = {};
+
+  for (const key of Object.keys(dto.times || {})) {
+    const t = dto.times[key];
+    let inDate: Date | undefined;
+    let outDate: Date | undefined;
+
+    if (t.checkIn) inDate = parseFlexibleLocal(dateKey, t.checkIn, tz);
+    if (t.checkOut) outDate = parseFlexibleLocal(dateKey, t.checkOut, tz);
+
+    const arr: SessionPair[] = [];
+    if (inDate && outDate && outDate < inDate) {
+      // Nếu người dùng nhập ngược giờ → đảo chiều để an toàn
+      arr.push({ in: outDate, out: inDate });
+    } else if (inDate && outDate) {
+      arr.push({ in: inDate, out: outDate });
+    } else if (inDate && !outDate) {
+      // Chỉ có in → lưu để hiển thị; không tính công vì thiếu out
+      arr.push({ in: inDate });
+    } else if (!inDate && outDate) {
+      // Chỉ có out → lưu để hiển thị; không tính công vì thiếu in
+      arr.push({ in: outDate }); // vẫn lưu cặp đơn; tùy bạn có muốn bỏ qua hoàn toàn không
+    } else {
+      continue;
+    }
+
+    pairsByCode[key] = arr;
+  }
+
+  // 2) Tổng hợp đơn giản: worked = sum(out-in), late/early = 0
+  const agg = aggregateNoSession(pairsByCode);
+
+  // 3) Ghi DB
+  await this.dailyModel.updateOne(
+    { userId, dateKey },
+    {
+      $set: {
+        userId,
+        dateKey,
+        shiftType: 'NO' as any, // hoặc 'No' tùy bạn, cast để qua type
+        workedCheckIn: agg.workedCheckIn,
+        hourWork: agg.hourWork,
+        workedMinutes: agg.workedMinutes,
+        lateMinutes: 0,
+        earlyLeaveMinutes: 0,
+        status: agg.status, // ABSENT | PRESENT theo tổng phút
+        sessions: agg.sessions,
+        computedAt: new Date(),
+        isManualEdit,
+        editNote,
+        ...(function () {
+          const legacy = projectLegacySessions(agg.sessions ?? []);
+          const set: any = {};
+          if (legacy.am) set.am = legacy.am;
+          if (legacy.pm) set.pm = legacy.pm;
+          if (legacy.ov) set.ov = legacy.ov;
+          return set;
+        })(),
+      },
+    },
+    { upsert: true },
+  );
+
+  return { ok: true };
+}
+
+async upsertByFirstInLastOut(
+  userId: string,
+  dateKey: string,
+) {
+  const tz = TZ;
+
+  // 1) Cửa sổ log trong ngày local
+  const startOfN = zonedTimeToUtc(dateKey, '00:00:00', tz);
+  const endOfN = zonedTimeToUtc(dateKey, '23:59:59', tz);
+
+  // 2) Lấy logs trong [startOfN, endOfN]
+  const rawLogs = await this.logsModel
+    .find({ userId, timestamp: { $gte: startOfN, $lte: endOfN } })
+    .sort({ timestamp: 1 })
+    .lean<AttendanceLogDocument[]>();
+
+  const times = rawLogs.map(x => new Date(x.timestamp));
+  const first = times[0];
+  const last = times.length > 0 ? times[times.length - 1] : undefined;
+
+  let worked = 0;
+  const pairs: SessionPair[] = [];
+  if (first && last && last > first) {
+    worked = Math.floor((last.getTime() - first.getTime()) / 60000); // phút
+    pairs.push({ in: first, out: last });
+  } else if (first) {
+    pairs.push({ in: first });
+  }
+
+  const status = worked <= 0 ? 'ABSENT' : 'PRESENT';
+
+  const perSession = [{
+    code: 'NO',
+    workedMinutes: worked,
+    hourWork: worked,
+    workedCheckIn: worked,
+    lateMinutes: 0,
+    earlyLeaveMinutes: 0,
+    pairs,
+  }];
+
+  // 3) Ghi DB
+  await this.dailyModel.updateOne(
+    { userId, dateKey },
+    {
+      $set: {
+        userId,
+        dateKey,
+        shiftType: 'NO' as any,
+        workedCheckIn: worked,
+        hourWork: worked,
+        workedMinutes: worked,
+        lateMinutes: 0,
+        earlyLeaveMinutes: 0,
+        status,
+        sessions: perSession,
+        computedAt: new Date(),
+        isManualEdit: false,
+        editNote: '[auto] first-in/last-out trong ngày',
+        ...(function () {
+          const legacy = projectLegacySessions(perSession);
+          const set: any = {};
+          if (legacy.am) set.am = legacy.am;
+          if (legacy.pm) set.pm = legacy.pm;
+          if (legacy.ov) set.ov = legacy.ov;
+          return set;
+        })(),
+      },
+    },
+    { upsert: true },
+  );
+
+  return { ok: true, logs: rawLogs.length, workedMinutes: worked, status };
+}
 
   /** Optional: recompute batch */
   async recomputeRange(
@@ -678,6 +773,46 @@ export function aggregateSessions(
     earlyLeaveMinutes: totalEarly,
     workedCheckIn: totalWorkedCheckIn,
     hourWork: totalHourWork,
+    status,
+    sessions: perSession,
+  };
+}
+
+export function aggregateNoSession(pairsByCode: Record<string, SessionPair[]>): AggregateResult {
+  let total = 0;
+
+  const perSession: NonNullable<AggregateResult['sessions']> = [];
+  for (const code of Object.keys(pairsByCode)) {
+    const pairs = pairsByCode[code] || [];
+    let worked = 0;
+
+    for (const p of pairs) {
+      if (p.in && p.out && p.out > p.in) {
+        worked += Math.floor((p.out.getTime() - p.in.getTime()) / 60000);
+      }
+    }
+
+    perSession.push({
+      code,
+      workedMinutes: worked,
+      hourWork: worked,
+      workedCheckIn: worked,
+      lateMinutes: 0,
+      earlyLeaveMinutes: 0,
+      pairs,
+    });
+
+    total += worked;
+  }
+
+  const status = total <= 0 ? 'ABSENT' : 'PRESENT';
+
+  return {
+    workedMinutes: total,
+    workedCheckIn: total,
+    hourWork: total,
+    lateMinutes: 0,
+    earlyLeaveMinutes: 0,
     status,
     sessions: perSession,
   };
@@ -974,7 +1109,6 @@ function zonedTimeOrOverflowToUtc(dateKey: string, timeHHmmss: string, tz: strin
 
   return zonedTimeToUtc(shiftedDateKey, `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`, tz);
 }
-
 
 /**
 * 00:00:00 của dateKey theo TZ → UTC Date

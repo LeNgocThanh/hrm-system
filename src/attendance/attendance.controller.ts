@@ -101,6 +101,15 @@ export class AttendanceController {
     return this.dailyService.upsertTimes(body);
   }
 
+  @Put('dailly-manual')
+  async upsertTimesManual(@Body() body: any) {
+    const { userId, dateKey } = body || {};
+    if (!userId || !dateKey) {
+      throw new BadRequestException('userId và date là bắt buộc');
+    }
+    return this.dailyService.upsertTimesNoSession(body);
+  }
+
   // --- SUMMARY ---
   @Get()
   async getMonthly(@Query('userId') userId?: string, @Query('monthKey') monthKey?: string) {

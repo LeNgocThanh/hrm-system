@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
 import { UsersService } from './users.service';
-import { CreateUserDto, UpdateUserDto, UserResponseDto } from './dto';
+import { CreateUserDto, UpdateUserDto, UserResponseDto, UserWithOrgResponseDto } from './dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
@@ -33,6 +33,14 @@ export class UsersController {
     const userId = req.user.userId;
     const roles = req.user.roles;
     return this.usersService.findByOrganization(userId, roles);
+  }
+
+  @RequirePermissions({ modules: { anyOf: ['User', 'All'] }, actions: { anyOf: ['read', 'viewOwner', 'manage'] } })
+  @Get('/withOrganizationName')
+  findByOrganizationWithInfo(@Req() req: any): Promise<UserWithOrgResponseDto[]> {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.usersService.findByOrganizationWithInfo(userId, roles);
   }
   
   @RequirePermissions({
