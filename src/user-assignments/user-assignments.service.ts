@@ -5,14 +5,12 @@ import { UserAssignment, UserAssignmentDocument } from './schemas/user-assignmen
 import { CreateUserAssignmentDto } from './dto/create-user-assignment.dto';
 import { UpdateUserAssignmentDto } from './dto/update-user-assignment.dto';
 import { QueryUserAssignmentDto } from './dto/query-user-assignment.dto';
-import { RolesService } from 'src/roles/roles.service';
 
 @Injectable()
 export class UserAssignmentsService {
   constructor(
     @InjectModel(UserAssignment.name)
-    private userAssignmentModel: Model<UserAssignmentDocument>,
-    private readonly rolesService: RolesService,
+    private userAssignmentModel: Model<UserAssignmentDocument>,    
   ) {}
 
   async create(createUserAssignmentDto: CreateUserAssignmentDto, userId : string, roles: any[]): Promise<UserAssignment> {
