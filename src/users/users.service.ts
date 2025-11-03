@@ -88,11 +88,13 @@ export class UsersService {
     const primaryAssignment = userAssignments.find(a => a.isActive && a.isPrimary);
 
     if (primaryAssignment) {
+      const userCode = primaryAssignment.userCode;
       const orgId = primaryAssignment.organizationId._id.toString();
       const org = await this.organizationsService.findOne(orgId);
 
       enrichedUsers.push({
         ...user,
+        userCode: userCode,
         organizationId: org?._id?.toString(),
         organizationName: org?.name ?? null,
       });
@@ -100,6 +102,7 @@ export class UsersService {
       // Nếu không có assignment chính, vẫn push user để giữ danh sách đầy đủ
       enrichedUsers.push({
         ...user,
+        userCode: null,
         organizationId: null,
         organizationName: null,
       });

@@ -4,11 +4,14 @@ import { Model } from 'mongoose';
 import { AttendanceLog } from './schemas/attendance-log.schema';
 import { CreateLogDto } from './dto/create-log.dto';
 import * as XLSX from 'xlsx';
+import { use } from 'passport';
+import { UserAssignmentsService } from 'src/user-assignments/user-assignments.service';
 
 @Injectable()
 export class LogsService {
   constructor(
     @InjectModel(AttendanceLog.name) private logModel: Model<AttendanceLog>,
+    private readonly userAssignmentSvc: UserAssignmentsService,
   ) {}
 
   async create(dto: CreateLogDto): Promise<AttendanceLog> {
@@ -64,6 +67,32 @@ export class LogsService {
 
   return this.logModel.insertMany(docs);
 }
+
+async importFromFileWithUserCode(file: Express.Multer.File) {
+  const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+  
+
+  const docsPromises = rows.map(async r => {
+    // 2. Dùng await để chờ kết quả từ service
+    // userAssignment sẽ là đối tượng UserAssignment được populate
+    const userAssignment = await this.userAssignmentSvc.findByCode(r['userCode']);
+    
+    // 3. Trả về đối tượng log với userId đã lấy được
+    return {
+      // Truy cập thuộc tính userId từ kết quả
+      userId: userAssignment.userId, 
+      timestamp: new Date(r['timestamp']),
+      source: r['source'] ?? 'manual',
+    };
+  });
+
+  // 4. Chờ TẤT CẢ các Promise trong mảng hoàn thành
+  const docs = await Promise.all(docsPromises);
+
+  return this.logModel.insertMany(docs);
+}
 async bulkCreateFromBody(items: Array<{ userId: string; timestamp: string }>) {
     const cleaned: Array<Partial<AttendanceLog>> = [];
     const invalidIdx: number[] = [];
@@ -82,6 +111,58 @@ async bulkCreateFromBody(items: Array<{ userId: string; timestamp: string }>) {
 
       cleaned.push({
         userId,
+        timestamp: ts,
+        // nếu schema có 'source' => để mặc định 'manual'/'import' tuỳ bạn
+        source: 'import',
+      } as any);
+    });
+
+    if (cleaned.length === 0) {
+      return {
+        inserted: 0,
+        invalid: invalidIdx.length,
+        duplicatesInPayload: items.length - invalidIdx.length,
+      };
+    }
+
+    try {
+      const res = await this.logModel.insertMany(cleaned, { ordered: false });
+      return {
+        inserted: res.length,
+        invalid: invalidIdx.length,
+        duplicatesInPayload: items.length - invalidIdx.length - res.length,
+      };
+    } catch (e: any) {      
+      const writeErrors = Array.isArray(e?.writeErrors) ? e.writeErrors : [];
+      const dupInDb = writeErrors.filter((w: any) => w?.code === 11000).length;
+      const inserted = e?.result?.nInserted ?? 0;
+      return {
+        inserted,
+        invalid: invalidIdx.length,
+        duplicatesInDb: dupInDb,
+      };
+    }
+  }
+
+  async bulkCreateFromBodyWithUserCode(items: Array<{ userCode: string; timestamp: string }>) {
+    const cleaned: Array<Partial<AttendanceLog>> = [];
+    const invalidIdx: number[] = [];
+    const seen = new Set<string>();
+
+    items.forEach((it, idx) => {
+      const userCode = String(it?.userCode ?? '').trim();
+      const ts = new Date(it?.timestamp as any);
+      if (!userCode || isNaN(ts.getTime())) {
+        invalidIdx.push(idx);
+        return;
+      }
+      const key = `${userCode}|${ts.toISOString()}`;
+      if (seen.has(key)) return; // trùng trong payload
+      seen.add(key);
+     
+
+      cleaned.push({
+        userCode,
         timestamp: ts,
         // nếu schema có 'source' => để mặc định 'manual'/'import' tuỳ bạn
         source: 'import',

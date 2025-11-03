@@ -5,15 +5,27 @@ import { UserAssignment, UserAssignmentDocument } from './schemas/user-assignmen
 import { CreateUserAssignmentDto } from './dto/create-user-assignment.dto';
 import { UpdateUserAssignmentDto } from './dto/update-user-assignment.dto';
 import { QueryUserAssignmentDto } from './dto/query-user-assignment.dto';
+import { RolesService } from 'src/roles/roles.service';
 
 @Injectable()
 export class UserAssignmentsService {
   constructor(
     @InjectModel(UserAssignment.name)
     private userAssignmentModel: Model<UserAssignmentDocument>,
+    private readonly rolesService: RolesService,
   ) {}
 
-  async create(createUserAssignmentDto: CreateUserAssignmentDto): Promise<UserAssignment> {
+  async create(createUserAssignmentDto: CreateUserAssignmentDto, userId : string, roles: any[]): Promise<UserAssignment> {
+    const moduleNames = ['All', 'User'];    
+    // Hàm tiện ích để kiểm tra quyền
+    const hasPermission = (action: string) => {
+      return roles.some(scope =>
+        moduleNames.some(moduleName =>
+          scope.groupedPermissions?.[moduleName]?.includes(action)
+        )
+      );
+    };
+
     const createdUserAssignment = new this.userAssignmentModel(createUserAssignmentDto);
     return createdUserAssignment.save();
   }
@@ -102,7 +114,7 @@ export class UserAssignmentsService {
       .populate('positionId', 'name')
       .populate('roleIds', 'name')
       .exec();
-  }
+  } 
 
   async update(id: string, updateUserAssignmentDto: UpdateUserAssignmentDto): Promise<UserAssignment> {
     const updatedUserAssignment = await this.userAssignmentModel

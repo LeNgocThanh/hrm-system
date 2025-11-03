@@ -12,6 +12,8 @@ import { HolidayService } from './holiday.service';
 import { Holiday, HolidaySchema } from './schemas/holiday-exception.schema';
 import { ShiftTypesModule } from 'src/shift_types/shift_types.module';
 import { UserPoliciesModule } from 'src/user-policies/user-policies.module';
+import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
+import { UserAssignmentSchema } from 'src/user-assignments/schemas/user-assignment.schema';
 
 @Module({
   imports: [
@@ -20,12 +22,15 @@ import { UserPoliciesModule } from 'src/user-policies/user-policies.module';
       { name: AttendanceDaily.name, schema: AttendanceDailySchema },
       { name: AttendanceSummary.name, schema: AttendanceSummarySchema },
       {name: Holiday.name, schema: HolidaySchema},
+      { name: 'UserAssignment', schema: UserAssignmentSchema },
+      
     ]),
     ShiftTypesModule,
     UserPoliciesModule,
+    UserAssignmentsModule,
   ],
   controllers: [AttendanceController, AttendanceJobController, HolidayController],
-  providers: [LogsService, DailyService, SummaryService, AttendanceJobService, HolidayService],
+  providers: [LogsService, DailyService, SummaryService, AttendanceJobService, HolidayService, UserAssignmentsModule],
   exports: [LogsService, DailyService, SummaryService, HolidayService],
 })
 export class AttendanceModule {}

@@ -52,6 +52,14 @@ export class AttendanceController {
     return this.logsService.importFromFile(file);
   }
 
+  @Post('logs/importByUserCode')
+  @UseInterceptors(FileInterceptor('file'))
+  async importLogsByUserCode(@UploadedFile() file: Express.Multer.File) {
+    console.log('Importing logs from file:', file);
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+    return this.logsService.importFromFileWithUserCode(file);
+  }
+
   @Post('logs/bulk')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
   async createLogsBulk(@Body() body: any) {   
