@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Put, Delete, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Put, Delete, Query, Req } from '@nestjs/common';
 import { OrganizationsService } from './organizations.service';
 import { CreateOrganizationDto, UpdateOrganizationDto, OrganizationResponseDto } from './dto';
 import { UseGuards } from '@nestjs/common';
@@ -24,6 +24,16 @@ export class OrganizationsController {
   @Get()
   findAll(@Query('type') type?: string): Promise<OrganizationResponseDto[]> {
     return this.organizationsService.findAll(type);
+  }
+
+   @RequirePermissions({
+    modules: { anyOf: ['All', 'User'] },
+    actions: { anyOf: ['manage', 'read'] },})
+  @Get('under')
+  findAllUnder(@Req() req: any): Promise<OrganizationResponseDto[]> {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.organizationsService.findDescendantsOrganizationByUserId(userId, roles);
   }
 
   @Get('root')

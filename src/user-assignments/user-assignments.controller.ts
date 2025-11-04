@@ -23,9 +23,8 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 
 
-
 @Controller('user-assignments')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiBearerAuth()
 export class UserAssignmentsController {
   constructor(private readonly userAssignmentsService: UserAssignmentsService) { }
@@ -88,41 +87,49 @@ export class UserAssignmentsController {
 
   @RequirePermissions({
     modules: { anyOf: ['All', 'User'] },
-    actions: { anyOf: ['manage', 'create'] },
+    actions: { anyOf: ['manage', 'update'] },
   })
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateUserAssignmentDto: UpdateUserAssignmentDto) {
-    return this.userAssignmentsService.update(id, updateUserAssignmentDto);
+  update(@Param('id') id: string, @Body() updateUserAssignmentDto: UpdateUserAssignmentDto, @Req() req: any) {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.userAssignmentsService.update(id, updateUserAssignmentDto, userId, roles);
   }
 
 
   @RequirePermissions({
     modules: { anyOf: ['All', 'User'] },
-    actions: { anyOf: ['manage', 'create'] },
+    actions: { anyOf: ['manage', 'update'] },
   })
   @Put(':id')
-  updatePut(@Param('id') id: string, @Body() updateUserAssignmentDto: UpdateUserAssignmentDto) {
-    return this.userAssignmentsService.update(id, updateUserAssignmentDto);
+  updatePut(@Param('id') id: string, @Body() updateUserAssignmentDto: UpdateUserAssignmentDto, @Req() req: any) {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.userAssignmentsService.update(id, updateUserAssignmentDto, userId, roles);
   }
 
 
   @RequirePermissions({
     modules: { anyOf: ['All', 'User'] },
-    actions: { anyOf: ['manage', 'create'] },
+    actions: { anyOf: ['manage', 'update'] },
   })
   @Patch(':id/deactivate')
-  deactivate(@Param('id') id: string) {
-    return this.userAssignmentsService.deactivate(id);
+  deactivate(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.userAssignmentsService.deactivate(id, userId, roles);
   }
 
 
   @RequirePermissions({
     modules: { anyOf: ['All', 'User'] },
-    actions: { anyOf: ['manage', 'create'] },
+    actions: { anyOf: ['manage', 'update'] },
   })
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.userAssignmentsService.remove(id);
+  remove(@Param('id') id: string, @Req() req: any) {
+    const userId = req.user.userId;
+    const roles = req.user.roles;
+    return this.userAssignmentsService.remove(id, userId, roles);
   }
 }

@@ -79,6 +79,50 @@ export class OrganizationsService {
     return descendants;
   }
 
+  async findDescendantsOrganizationByUserId(userId: string, roles: any[]): Promise<OrganizationResponseDto[]> {
+   // const descendants: OrganizationResponseDto[] = [];
+    const uniqueDescendantsMap = new Map<string, OrganizationResponseDto>();
+    const moduleNames = ['All', 'User'];    
+    // Hàm tiện ích để kiểm tra quyền
+    const hasPermission = (action: string) => {
+      return roles.some(scope =>
+        moduleNames.some(moduleName =>
+          scope.groupedPermissions?.[moduleName]?.includes(action)
+        )
+      );
+    };
+    if (hasPermission('manage')) {
+      const allOrgs = await this.findAll();
+      return allOrgs;
+    }
+    else {    
+    const findDescendantsRecursive = async (parentId: string) => {
+      const children = await this.organizationModel.find({ parent: parentId }).exec();
+      
+      for (const child of children) {
+        const childDto = child.toObject() as unknown as OrganizationResponseDto;
+      //  descendants.push(childDto);
+        uniqueDescendantsMap.set(childDto._id.toString(), childDto);
+        await findDescendantsRecursive(child._id.toString());
+      }
+    };
+   // const userIdObjectId = new Types.ObjectId(userId);
+    const userAssignments = await this.userAssignmentsService.findByUserId( userId);   
+    for (const assignment of userAssignments) {
+      const orgId = assignment.organizationId._id.toString();
+      const orgDto = await this.organizationModel.findById(orgId).exec();
+      if (orgDto) {
+        const orgResponseDto = orgDto.toObject() as unknown as OrganizationResponseDto;
+        uniqueDescendantsMap.set(orgResponseDto._id.toString(), orgResponseDto);
+      }      
+      await findDescendantsRecursive(orgId);
+    }    
+    
+    //await findDescendantsRecursive(userId);
+    return Array.from(uniqueDescendantsMap.values());
+  }
+  }
+
   async update(id: string, updateOrganizationDto: UpdateOrganizationDto): Promise<OrganizationResponseDto> {
     const updatedOrganization = await this.organizationModel.findByIdAndUpdate(id, updateOrganizationDto, { new: true }).exec();
     return updatedOrganization?.toObject() as unknown as OrganizationResponseDto;

@@ -64,6 +64,9 @@ export class Asset {
   @Prop({ type: Types.ObjectId, ref: 'User', index: true, default: null })
   currentHolderId?: Types.ObjectId | null; // người đang được giao
 
+  @Prop({ type: Types.ObjectId, ref: 'Organization', index: true, default: null })
+  orgId?: Types.ObjectId | null; // đơn vị sử dụng (khi mới nhập về, nhập kho có thể chỉ có orgId không có userId, còn lại sẽ map theo userId)
+
   @Prop({ type: String, trim: true })
   note?: string;
 

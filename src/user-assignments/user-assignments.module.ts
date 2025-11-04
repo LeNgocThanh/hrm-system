@@ -4,14 +4,21 @@ import { UserAssignmentsController } from './user-assignments.controller';
 import { UserAssignmentsService } from './user-assignments.service';
 import { UserAssignment, UserAssignmentSchema } from './schemas/user-assignment.schema';
 import { RolesModule } from 'src/roles/roles.module';
+import { PermissionsModule } from 'src/permissions/permissions.module';
+import { RoleSchema, RoleDocument } from 'src/roles/schemas/role.schema';
+import { PermissionSchema, PermissionDocument } from 'src/permissions/schemas/permission.schema';
 
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: UserAssignment.name, schema: UserAssignmentSchema },
-     
+      { name: 'RoleDocument', schema: RoleSchema },
+      { name: 'PermissionDocument', schema: PermissionSchema },
     ]),
+    RolesModule,
+    PermissionsModule,
+    RolesModule,   
   ],
   controllers: [UserAssignmentsController],
   providers: [UserAssignmentsService],

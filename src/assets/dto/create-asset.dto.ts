@@ -70,4 +70,9 @@ export class CreateAssetDto {
   @IsOptional()
   @IsMongoId()
   currentHolderId?: string;
+
+  @ApiPropertyOptional({ example: 'orgId123', description: 'ID tổ chức đang nắm)' })
+  @IsOptional()
+  @IsMongoId()
+  orgId?: string;
 }
