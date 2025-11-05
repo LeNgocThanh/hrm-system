@@ -9,10 +9,10 @@ import { UserAssignmentsService } from 'src/user-assignments/user-assignments.se
 @Injectable()
 export class OrganizationsService {
   constructor(@InjectModel(Organization.name) private organizationModel: Model<OrganizationDocument>,
-@InjectModel(UserAssignment.name)
+    @InjectModel(UserAssignment.name)
     private userAssignmentModel: Model<UserAssignmentDocument>,
     private readonly userAssignmentsService: UserAssignmentsService,
-) {}
+  ) { }
 
   async create(createOrganizationDto: CreateOrganizationDto): Promise<OrganizationResponseDto> {
     const createdOrganization = await this.organizationModel.create(createOrganizationDto);
@@ -64,10 +64,10 @@ export class OrganizationsService {
 
   async findDescendants(id: string): Promise<OrganizationResponseDto[]> {
     const descendants: OrganizationResponseDto[] = [];
-    
+
     const findDescendantsRecursive = async (parentId: string) => {
       const children = await this.organizationModel.find({ parent: parentId }).exec();
-      
+
       for (const child of children) {
         const childDto = child.toObject() as unknown as OrganizationResponseDto;
         descendants.push(childDto);
@@ -80,9 +80,9 @@ export class OrganizationsService {
   }
 
   async findDescendantsOrganizationByUserId(userId: string, roles: any[]): Promise<OrganizationResponseDto[]> {
-   // const descendants: OrganizationResponseDto[] = [];
+    // const descendants: OrganizationResponseDto[] = [];
     const uniqueDescendantsMap = new Map<string, OrganizationResponseDto>();
-    const moduleNames = ['All', 'User'];    
+    const moduleNames = ['All', 'User'];
     // Hàm tiện ích để kiểm tra quyền
     const hasPermission = (action: string) => {
       return roles.some(scope =>
@@ -95,32 +95,32 @@ export class OrganizationsService {
       const allOrgs = await this.findAll();
       return allOrgs;
     }
-    else {    
-    const findDescendantsRecursive = async (parentId: string) => {
-      const children = await this.organizationModel.find({ parent: parentId }).exec();
-      
-      for (const child of children) {
-        const childDto = child.toObject() as unknown as OrganizationResponseDto;
-      //  descendants.push(childDto);
-        uniqueDescendantsMap.set(childDto._id.toString(), childDto);
-        await findDescendantsRecursive(child._id.toString());
+    else {
+      const findDescendantsRecursive = async (parentId: string) => {
+        const children = await this.organizationModel.find({ parent: parentId }).exec();
+
+        for (const child of children) {
+          const childDto = child.toObject() as unknown as OrganizationResponseDto;
+          //  descendants.push(childDto);
+          uniqueDescendantsMap.set(childDto._id.toString(), childDto);
+          await findDescendantsRecursive(child._id.toString());
+        }
+      };
+      // const userIdObjectId = new Types.ObjectId(userId);
+      const userAssignments = await this.userAssignmentsService.findByUserId(userId);
+      for (const assignment of userAssignments) {
+        const orgId = assignment.organizationId._id.toString();
+        const orgDto = await this.organizationModel.findById(orgId).exec();
+        if (orgDto) {
+          const orgResponseDto = orgDto.toObject() as unknown as OrganizationResponseDto;
+          uniqueDescendantsMap.set(orgResponseDto._id.toString(), orgResponseDto);
+        }
+        await findDescendantsRecursive(orgId);
       }
-    };
-   // const userIdObjectId = new Types.ObjectId(userId);
-    const userAssignments = await this.userAssignmentsService.findByUserId( userId);   
-    for (const assignment of userAssignments) {
-      const orgId = assignment.organizationId._id.toString();
-      const orgDto = await this.organizationModel.findById(orgId).exec();
-      if (orgDto) {
-        const orgResponseDto = orgDto.toObject() as unknown as OrganizationResponseDto;
-        uniqueDescendantsMap.set(orgResponseDto._id.toString(), orgResponseDto);
-      }      
-      await findDescendantsRecursive(orgId);
-    }    
-    
-    //await findDescendantsRecursive(userId);
-    return Array.from(uniqueDescendantsMap.values());
-  }
+
+      //await findDescendantsRecursive(userId);
+      return Array.from(uniqueDescendantsMap.values());
+    }
   }
 
   async update(id: string, updateOrganizationDto: UpdateOrganizationDto): Promise<OrganizationResponseDto> {
@@ -129,7 +129,7 @@ export class OrganizationsService {
   }
 
   async delete(id: string): Promise<OrganizationResponseDto> {
-    
+
     const deletedOrganization = await this.organizationModel.findByIdAndDelete(id).exec();
     // Xoá các UserAssignment liên quan đến tổ chức này
     await this.userAssignmentModel.deleteMany({ organizationId: id }).exec();
@@ -143,14 +143,14 @@ export class OrganizationsService {
    *   - includeInactive: mặc định false → chỉ lấy assignment đang active
    *   - fields: các trường của user cần trả về (mặc định: username, email, firstName, lastName)
    */
-async findUsersInTree(
+  async findUsersInTree(
     orgId: string,
     opts?: { includeInactive?: boolean; fields?: string }
   ): Promise<{
     totalUsers: number;
     users: Array<{
-      _id: Types.ObjectId;     
-      email?: string;     
+      _id: Types.ObjectId;
+      email?: string;
       fullName?: string;
       phone?: string;
       gender: string;
@@ -164,12 +164,11 @@ async findUsersInTree(
       }>;
     }>;
   }> {
-    // 1) gom toàn bộ orgIds = [orgId, ...descendantIds]
-   
-    const root = await this.organizationModel.findById(orgId).exec();       
+
+    const root = await this.organizationModel.findById(orgId).exec();
     if (!root) return { totalUsers: 0, users: [] };
 
-    const orgObjectIds: Types.ObjectId[] = [new Types.ObjectId(root._id as any)];   
+    const orgObjectIds: Types.ObjectId[] = [new Types.ObjectId(root._id as any)];
 
     // nếu đã có sẵn method findDescendants(id) → dùng lại:
     const descendants = await this.findDescendants(orgId);
@@ -180,20 +179,20 @@ async findUsersInTree(
     const orgIds: string[] = orgObjectIds.map(id => id.toString());
 
     // 2) dựng filter cho UserAssignment
-    
+
     const filter: any = { organizationId: { $in: orgIds } };
-    
+
 
     if (!(opts?.includeInactive)) filter.isActive = true;
 
     // 3) query assignments + populate user
-   // const fields = opts?.fields ?? 'email phone gender fullName';   
+    // const fields = opts?.fields ?? 'email phone gender fullName';   
     const assignments = await this.userAssignmentModel
       .find(filter)
       .populate('userId')
       .lean()
       .exec();
-      
+
 
     // 4) map → group theo userId + khử trùng lặp user
     const userMap = new Map<string, any>();
@@ -206,9 +205,9 @@ async findUsersInTree(
         userMap.set(key, {
           _id: u._id,
           fullName: u.fullName,
-          email: u.email,    
+          email: u.email,
           phone: u.phone,
-          gender: u. gender,
+          gender: u.gender,
           assignments: [],
         });
       }
@@ -217,12 +216,76 @@ async findUsersInTree(
         positionId: a.positionId,
         isPrimary: a.isPrimary,
         isActive: a.isActive,
-       timeIn: a.timeIn,
-       timeOut: a.timeOut,
+        timeIn: a.timeIn,
+        timeOut: a.timeOut,
       });
     }
 
     const users = Array.from(userMap.values());
     return { totalUsers: users.length, users };
   }
+
+  async findUsersInTreeNew(
+    orgId: string,
+  ): Promise<{
+    totalUsers: number;
+    users: Array<{
+      _id: Types.ObjectId;
+      email?: string;
+      fullName?: string;
+      phone?: string;
+      gender: string;
+      userCode?: string;
+      orgNames?: string[];
+    }>;
+  }> {
+
+    const root = await this.organizationModel.findById(orgId).exec();
+    if (!root) return { totalUsers: 0, users: [] };
+
+    const orgObjectIds: Types.ObjectId[] = [new Types.ObjectId(root._id as any)];
+
+    const descendants = await this.findDescendants(orgId);
+    descendants.forEach(d => {
+
+      orgObjectIds.push(((d as any)._id as any));
+    });
+    const orgIds: string[] = orgObjectIds.map(id => id.toString());
+
+    const filter: any = { organizationId: { $in: orgIds } };
+    filter.isActive = true;
+    filter.isPrimary = true;
+   
+    const assignments = await this.userAssignmentModel
+      .find(filter)
+      .populate('userId')
+      .populate('organizationId')
+      .lean()
+      .exec();
+
+
+    // 4) map → group theo userId + khử trùng lặp user
+    const userMap = new Map<string, any>();
+    for (const a of assignments) {
+      const u = a.userId as any; // đã populate
+      if (!u?._id) continue;
+      const key = String(u._id);
+
+      if (!userMap.has(key)) {
+        userMap.set(key, {
+          _id: u._id,
+          fullName: u.fullName,
+          email: u.email,
+          phone: u.phone,
+          gender: u.gender,
+          userCode: u.userCode,
+          orgNames: [(a.organizationId as any)?.name || ''],
+        });
+      };
+    }
+    const users = Array.from(userMap.values());
+    return { totalUsers: users.length, users };
+  }
 }
+
+

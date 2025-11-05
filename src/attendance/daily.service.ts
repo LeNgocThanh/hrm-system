@@ -14,6 +14,7 @@ import { UserPolicyType } from 'src/user-policies/common/user-policy-type.enum';
 import { ShiftTypesService } from 'src/shift_types/shift_types.service';
 import { ShiftType, WeeklyRules, ShiftSession } from 'src/shift_types/schemas/shift-type.schema';
 import { SessionCode } from 'src/shift_types/common/session-code.enum';
+import { OrganizationsService } from 'src/organizations/organizations.service';
 
 interface ListUserPolicyQueryDto {  
   userId?: Types.ObjectId; 
@@ -69,7 +70,7 @@ export interface UpsertTimesDto {
   dateKey: string;                    // 'YYYY-MM-DD' (local TZ)
   shiftType?: WorkShiftType;          // mặc định REGULAR
   tz?: string;                        // mặc định 'Asia/Bangkok' trong file
-  times: Record<string, UpsertTimesByCodeEntry>; // ví dụ: { AM:{checkIn:'08:05',checkOut:'12:03'}, OV:{checkOut:'26:40'} }
+  times: Record<string, UpsertTimesByCodeEntry>; 
   editNote?: string;               // ghi chú khi sửa
 }
 
@@ -88,6 +89,7 @@ export class DailyService {
     private readonly holidaySvc: HolidayService,
     private readonly userPolicyBindingSvc: UserPolicyBindingService,
     private readonly shiftTypeSvc: ShiftTypesService,
+    private readonly orgSvc: OrganizationsService,
   ) { }
 
   /** ------- Public APIs ------- */
@@ -104,6 +106,37 @@ export class DailyService {
     if (to) q.dateKey.$lte = to;
     return this.dailyModel.find(q).sort({ dateKey: 1, userId: 1 }).lean();
   }
+
+  async findRangeByOrgTree(
+  orgId: string,
+  from?: string,
+  to?: string,
+) {
+  // 1) Lấy toàn bộ user trong cây org (theo OrganizationsService.findUsersInTreeNew)
+  const result = await this.orgSvc.findUsersInTreeNew(orgId);
+  const userIds: string[] = (result?.users ?? [])
+    .map(u => (u?._id ? String(u._id) : undefined))
+    .filter((x): x is string => Boolean(x));
+
+  // Không có người dùng nào => trả về mảng rỗng
+  if (userIds.length === 0) {
+    return [];
+  }
+
+  // 2) Xây query tương tự findRange nhưng userId là $in danh sách userIds
+  const q: any = { userId: { $in: userIds } };
+  if (from || to) {
+    q.dateKey = {};
+    if (from) q.dateKey.$gte = from; // YYYY-MM-DD
+    if (to)   q.dateKey.$lte = to;   // YYYY-MM-DD
+  }
+
+  // 3) Trả về theo thứ tự userId, dateKey (hoặc đổi thứ tự tùy nhu cầu)
+  return this.dailyModel
+    .find(q)
+    .sort({ userId: 1, dateKey: 1 })
+    .lean();
+}
 
   /**
    * Upsert Daily từ LOGS dựa trên shift-definition (REGULAR: AM/PM; T7 chỉ AM; CN nghỉ).
@@ -431,6 +464,7 @@ export class DailyService {
 
   return { ok: true };
 }
+
 
 async upsertByFirstInLastOut(
   userId: string,

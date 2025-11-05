@@ -100,6 +100,18 @@ export class AttendanceController {
     return [];
   }  
 
+  @Get('daily/range-by-org')
+async getRangeByOrg(
+  @Query('orgId') orgId: string,
+  @Query('from') from?: string,
+  @Query('to') to?: string,
+) {
+  if (!orgId) {
+    throw new BadRequestException('orgId là bắt buộc');
+  }
+  return this.dailyService.findRangeByOrgTree(orgId, from, to);
+}
+
   @Put('times')
   async upsertTimes(@Body() body: any) {
     const { userId, dateKey } = body || {};

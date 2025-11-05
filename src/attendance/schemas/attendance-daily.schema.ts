@@ -35,6 +35,9 @@ export class AttendanceDaily extends Document {
   @Prop() hourWork?: number; //số phút công phải làm trong ngày
   @Prop() workedCheckIn?: number; // số phút thực tế đã làm tính từ checkin
 
+  @Prop() firstIn?: Date; // tạo sẵn để dễ truy vấn
+  @Prop() lastOut?: Date; // tạo sẵn để dễ truy vấn
+
   @Prop({ default: false }) isFinalized!: boolean; // đã chốt công (không tự động cập nhật nữa) dùng cho trường hợp đã manual edit hoặc logic chốt công mở rộng sau này
 
   // Theo phiên

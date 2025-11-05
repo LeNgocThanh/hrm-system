@@ -14,6 +14,8 @@ import { ShiftTypesModule } from 'src/shift_types/shift_types.module';
 import { UserPoliciesModule } from 'src/user-policies/user-policies.module';
 import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.module';
 import { UserAssignmentSchema } from 'src/user-assignments/schemas/user-assignment.schema';
+import { OrganizationsModule } from 'src/organizations/organizations.module';
+import { OrganizationsService } from 'src/organizations/organizations.service';
 
 @Module({
   imports: [
@@ -28,9 +30,10 @@ import { UserAssignmentSchema } from 'src/user-assignments/schemas/user-assignme
     ShiftTypesModule,
     UserPoliciesModule,
     UserAssignmentsModule,
+    OrganizationsModule,
   ],
   controllers: [AttendanceController, AttendanceJobController, HolidayController],
-  providers: [LogsService, DailyService, SummaryService, AttendanceJobService, HolidayService, UserAssignmentsModule],
+  providers: [LogsService, DailyService, SummaryService, AttendanceJobService, HolidayService, UserAssignmentsModule, OrganizationsModule],
   exports: [LogsService, DailyService, SummaryService, HolidayService],
 })
 export class AttendanceModule {}
