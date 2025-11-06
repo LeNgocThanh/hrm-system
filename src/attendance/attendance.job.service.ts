@@ -180,8 +180,7 @@ async runLogsOverNightToDailySmart(
 ) {
   // === Xác định khoảng thời gian cần chạy ===
   let rangeFrom: string;
-  let rangeTo: string;
-  console.log('from-to truyen vao', from, '-', to);
+  let rangeTo: string; 
 
   if (!from && !to) {   
     const prev = monthRange(shiftMonthKey(isoMonthKey(nowInTz(TZ)), -1));

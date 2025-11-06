@@ -163,8 +163,7 @@ export class DailyService {
 
     let userShiftType = [];
     try {
-      userShiftType = await this.userPolicyBindingSvc.findAll(querry);
-      console.log('findAll executed successfully');
+      userShiftType = await this.userPolicyBindingSvc.findAll(querry);      
     }
     catch (error) {
       console.log('findAll execution failed');
@@ -257,11 +256,7 @@ export class DailyService {
     if (holiday) {
       agg.status = 'HOLIDAY';
     }
-
-    await this.dailyModel.replaceOne(
-      { userId, dateKey },
-      {
-        $set: {
+    const replacementDocument = {
           userId,
           dateKey,
           shiftType: policyCode,
@@ -279,9 +274,11 @@ export class DailyService {
             if (legacy.pm) set.pm = legacy.pm;
             if (legacy.ov) set.ov = legacy.ov;
             return set;
-          })(),
-        },
-      },
+          })(), };
+
+    await this.dailyModel.replaceOne(
+      { userId, dateKey },
+       replacementDocument,
       { upsert: true },
     );
   }
@@ -380,8 +377,7 @@ export class DailyService {
           isManualEdit,
           ...(function () {
             const legacy = projectLegacySessions(agg.sessions ?? []);
-            const set: any = {};
-            console.log('legacy', legacy);
+            const set: any = {};           
             if (legacy.am) set.am = legacy.am;
             if (legacy.pm) set.pm = legacy.pm;
             if (legacy.ov) set.ov = legacy.ov;
@@ -393,7 +389,7 @@ export class DailyService {
     );
   }
 
-  async upsertTimesNoSession(dto: UpsertTimesDto) {
+  async upsertTimesNoSession(dto: UpsertTimesDto) {    
     const userId = dto.userId;
     const dateKey = dto.dateKey;
     const tz = dto.tz || TZ;
@@ -437,13 +433,8 @@ export class DailyService {
     // 2) Tổng hợp đơn giản: worked = sum(out-in), late/early = 0
     const agg = aggregateNoSession(pairsByCode);
     const realWorkedMinutes = (workedMinutes > 0) ? workedMinutes : agg.workedMinutes;
-
-    // 3) Ghi DB
-    await this.dailyModel.updateOne(
-      { userId, dateKey },
-      {
-        $set: {
-          userId,
+    const replacementDocument = {
+    userId,
           dateKey,
           shiftType: 'NO' as any, // hoặc 'No' tùy bạn, cast để qua type
           workedCheckIn: agg.workedCheckIn,
@@ -463,9 +454,13 @@ export class DailyService {
             if (legacy.pm) set.pm = legacy.pm;
             if (legacy.ov) set.ov = legacy.ov;
             return set;
-          })(),
-        },
-      },
+    })(),
+};
+
+    // 3) Ghi DB
+    await this.dailyModel.replaceOne(
+      { userId, dateKey },
+       replacementDocument,
       { upsert: true },
     );
 
