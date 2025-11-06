@@ -73,8 +73,8 @@ export interface UpsertTimesDto {
   times: Record<string, UpsertTimesByCodeEntry>;
   editNote?: string;
   lateMinutes?: number;
-  earlyLeaveMinutes?: number;   
-  workedMinutes?: number;        
+  earlyLeaveMinutes?: number;
+  workedMinutes?: number;
 }
 
 @Injectable()
@@ -258,7 +258,7 @@ export class DailyService {
       agg.status = 'HOLIDAY';
     }
 
-    await this.dailyModel.updateOne(
+    await this.dailyModel.replaceOne(
       { userId, dateKey },
       {
         $set: {
@@ -436,7 +436,7 @@ export class DailyService {
 
     // 2) Tổng hợp đơn giản: worked = sum(out-in), late/early = 0
     const agg = aggregateNoSession(pairsByCode);
-   const realWorkedMinutes = (workedMinutes > 0) ? workedMinutes : agg.workedMinutes;
+    const realWorkedMinutes = (workedMinutes > 0) ? workedMinutes : agg.workedMinutes;
 
     // 3) Ghi DB
     await this.dailyModel.updateOne(
@@ -482,6 +482,12 @@ export class DailyService {
     // 1) Cửa sổ log trong ngày local
     const startOfN = zonedTimeToUtc(dateKey, '00:00:00', tz);
     const endOfN = zonedTimeToUtc(dateKey, '23:59:59', tz);
+    const dataAlreadyInDb = await this.dailyModel.findOne({ userId, dateKey }).lean();
+    const isManualEdit = dataAlreadyInDb?.isManualEdit || false;
+    if (isManualEdit) {
+      // Không ghi đè dữ liệu đã chỉnh sửa tay
+      return;
+    }
 
     // 2) Lấy logs trong [startOfN, endOfN]
     const rawLogs = await this.logsModel
@@ -515,7 +521,7 @@ export class DailyService {
     }];
 
     // 3) Ghi DB
-    await this.dailyModel.updateOne(
+    await this.dailyModel.replaceOne(
       { userId, dateKey },
       {
         $set: {
@@ -531,7 +537,7 @@ export class DailyService {
           sessions: perSession,
           computedAt: new Date(),
           isManualEdit: false,
-          editNote: '[auto] first-in/last-out trong ngày',
+          editNote: '[auto] first-in/last-out trong ngày do không có ca gán',
           ...(function () {
             const legacy = projectLegacySessions(perSession);
             const set: any = {};
@@ -862,7 +868,7 @@ export function aggregateNoSession(pairsByCode: Record<string, SessionPair[]>): 
     total += worked;
   }
 
-  const status = total <= 0 ? 'ABSENT' : total>240 ? 'FULL' : 'PARTIAL';
+  const status = total <= 0 ? 'ABSENT' : total > 240 ? 'FULL' : 'PARTIAL';
 
   return {
     workedMinutes: total,

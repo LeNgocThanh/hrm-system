@@ -135,9 +135,7 @@ export class AuthService {
   }
 
   async refreshToken(userId: string, accountId: string) {
-    // Find account by userId to get user info
-    // Lưu ý: Ở đây bạn cần xác thực refresh token từ cookie, không phải chỉ dựa vào userId
-    // Logic này cần được điều chỉnh để đọc và xác thực refresh token từ request
+    
     const account = await this.userAccountsService.findByUserId(userId);
     if (!account) {
       throw new UnauthorizedException('Account not found');
