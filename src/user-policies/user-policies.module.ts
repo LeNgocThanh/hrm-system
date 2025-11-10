@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { UserPolicyBindingService } from './user-policies.service';
 import { UserPolicyBindingController } from './user-policies.controller';
 import { UserPolicyBinding, UserPolicyBindingSchema } from './schemas/user-policy-binding.schema'; // Cần chỉnh sửa đường dẫn nếu cần
+import { UserDocument } from 'src/users/schemas/user.schema';
 
 @Module({
   imports: [

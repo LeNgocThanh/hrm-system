@@ -237,22 +237,22 @@ export class DailyService {
       const endPlusPrev = prevOV.maxCheckOutLateMins ?? 0;
       const prevOVEndPlus = addMinutes(
         zonedTimeOrOverflowToUtc(prevDate, `${prevOV.end}:00`, TZ),
-        - endPlusPrev,
+        endPlusPrev,
       );
       if (prevOVEndPlus > lowerBound) lowerBound = prevOVEndPlus; // gán lại mốc nhỏ nhất lấy log (chú ý tránh mất log ca sau do cộng thêm thời gian cho phép ra muộn )
     }
-
+    
     // 3) Fetch logs theo cửa sổ [lowerBound, endOfFetchN]
     const rawLogs = await this.logsModel
       .find({ userId, timestamp: { $gte: lowerBound, $lte: endOfFetchN } })
       .sort({ timestamp: 1 })
       .lean<AttendanceLogDocument[]>();
-
+   
     const logTimes = rawLogs.map((x) => new Date(x.timestamp));
-
-
+   
     // 4) Ghép cặp LINH HOẠT THEO PHIÊN
     const pairsBySession = buildPairsBySessionFlexible(logTimes, ShiftSessionsForDay, dateKey, TZ, isCheckTwoTimes);
+    
 
     // 5) Tính worked/late/early theo từng session rồi tổng hợp
     const agg = aggregateSessions(pairsBySession, ShiftSessionsForDay, dateKey, TZ, opts);
@@ -1030,7 +1030,6 @@ export function aggregateSessions(
     totalLate += late;
     totalEarly += early;
 
-
     perSession.push({
       code: s.code,
       workedMinutes: worked,
@@ -1047,8 +1046,6 @@ export function aggregateSessions(
   let status: any;// ví dụ 2h
   status = totalWorked <= 0 ? 'ABSENT' : totalWorked < half ? 'HALF' : 'FULL';
   if (sessions.length === 0) { status = 'LEAVE'; } // không có phiên thì coi như LEAVE
-
-
 
   return {
     workedMinutes: totalWorked,
@@ -1180,77 +1177,11 @@ function pairLogs(ts: Date[]): Array<{ in: Date; out?: Date }> {
   return pairs;
 }
 
-function buildPairsWithManual(
-  logTs: Date[],
-  manualIn?: Date,
-  manualOut?: Date,
-): Array<{ in: Date; out?: Date }> {
-  if (manualIn && manualOut) return [{ in: manualIn, out: manualOut }];
-
-  const base = pairLogs(logTs);
-  if (manualIn && !manualOut) return [{ in: manualIn }, ...base];
-  if (!manualIn && manualOut) return [...base, { in: manualOut }]; // giữ để không mất dữ liệu
-  return base;
-}
-
-// Tính thực tế cho một session từ các cặp [in,out]
-function calcForSessionFromPairs(
-  pairs: Array<{ in: Date; out?: Date }>,
-  s: ShiftSession,
-  dateKey: string,
-  tz: string,
-) {
-  const start = zonedTimeToUtc(dateKey, `${s.start}:00`, tz);
-  const end = zonedTimeToUtc(dateKey, `${s.end}:00`, tz);
-
-  let worked = 0, firstIn: Date | undefined, lastOut: Date | undefined;
-  for (const p of pairs) {
-    const aStart = p.in;
-    const aEnd = p.out ?? p.in;
-    const o = overlapMs(aStart, aEnd, start, end);
-    if (o > 0) {
-      worked += Math.round(o / 60000);
-      if (!firstIn || aStart < firstIn) firstIn = p.in;
-      if (!lastOut || (p.out && p.out > lastOut)) lastOut = p.out!;
-    }
-  }
-
-  const graceIn = s.graceInMins ?? 0;
-  const graceOut = s.graceOutMins ?? 0;
-
-  let late = 0, early = 0;
-  if (firstIn) {
-    const targetIn = new Date(start.getTime() + graceIn * 60000);
-    if (firstIn > targetIn) late = Math.round((firstIn.getTime() - targetIn.getTime()) / 60000);
-  }
-  if (lastOut) {
-    const targetOut = new Date(end.getTime() - graceOut * 60000);
-    if (lastOut < targetOut) early = Math.round((targetOut.getTime() - lastOut.getTime()) / 60000);
-  }
-
-  const required = s.required !== false;
-  const planned = Math.max(0, Math.round((end.getTime() - start.getTime()) / 60000));
-  const fulfilled = required ? worked >= Math.max(planned - 30, 0) : worked > 0;
-
-  return {
-    checkIn: firstIn,
-    checkOut: lastOut,
-    workedMinutes: worked,
-    lateMinutes: late,
-    earlyLeaveMinutes: early,
-    fulfilled,
-  };
-}
-
 function overlapMs(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): number {
   const s = Math.max(aStart.getTime(), bStart.getTime());
   const e = Math.min(aEnd.getTime(), bEnd.getTime());
   return Math.max(0, e - s);
 }
-
-
-
-
 
 function zonedTimeToUtc(dateKey: string, timeHHmmss: string, tz: string): Date {
   const [Y, M, D] = dateKey.split("-").map(Number);
@@ -1358,21 +1289,6 @@ function parseFlexibleLocal(dateKey: string, s: string, tz: string): Date {
   return zonedTimeOrOverflowToUtc(dateKey, `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`, tz);
 }
 
-/**
- * Xây cặp in/out cho AM/PM khi cho phép chồng lấn và chỉ dựa vào 2 mốc:
- * - earliestLog: log sớm nhất trong ngày
- * - latestLog:   log muộn nhất trong ngày
- *
- * Quy tắc (ngưỡng = 60 phút):
- *  (1) Nếu latest nằm trong PM nhưng latest ≤ end(AM)+1h → chỉ tính AM.
- *  (2) Nếu latest > end(AM)+1h → tính PM (tuỳ thêm điều kiện dưới).
- *  (3) Nếu earliest nằm trong AM nhưng earliest ≥ start(PM)-1h → không tính AM.
- *  (4) Còn lại tính cả 2 ca; lấy end(AM) làm firstIn của PM và bỏ lateMinutes của PM.
- *
- * Lưu ý:
- * - Pairs cắt/clamp theo khung ca: AM: [max(earliest, startAM) → min(latest, endAM)]
- *   PM: tuỳ case; nếu “tính cả 2 ca”, PM.in = end(AM) (để loại late PM) và PM.out = clamp(latest, endPM).
- */
 function buildPairsOverlappedAmPmByEarliestLatest(
   logs: Date[],
   sessions: ShiftSession[],
@@ -1717,6 +1633,7 @@ function aggregateMixSession(
 
   // Xác định status
   const half = opts?.halfThresholdMinutes ?? 120;
+  const isOvertime = totalWorked > (totalHourWork + 60); 
   let status: any;
   if (totalWorked <= 0) {
     status = 'ABSENT';
@@ -1724,6 +1641,9 @@ function aggregateMixSession(
     status = 'HALF';
   } else {
     status = 'FULL';
+  }
+  if (isOvertime) {
+    status = 'OVERTIME';
   }
 
   return {

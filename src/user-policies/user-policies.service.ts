@@ -59,8 +59,43 @@ export class UserPolicyBindingService {
             { effectiveTo: { $eq: null } }
         ]}
       ];
+    }    
+
+    return this.userPolicyBindingModel
+      .find(findQuery)
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .exec();
+  }
+
+  async findAllInOrganizations(query: ListUserPolicyQueryDto): Promise<UserPolicyBindingDocument[]> {
+    const { userId, policyType, onDate, page = 1, limit = 20 } = query;
+    const findQuery: Record<string, any> = {};    
+    if (userId) {
+      findQuery.userId = userId.toString();
     }
-    console.log('findQuery', findQuery);
+    if (policyType) {
+      findQuery.policyType = policyType;
+    }
+
+    // Lọc theo ngày hiệu lực (onDate)
+    if (onDate) {
+      // onDate đã được xác thực là chuỗi YYYY-MM-DD, không cần dùng dayjs để định dạng lại.
+      const dateString = onDate;
+     
+      findQuery.$and = [
+        // effectiveFrom <= onDate (hoặc effectiveFrom không tồn tại/null)
+        { $or: [
+            { effectiveFrom: { $lte: dateString } },
+            { effectiveFrom: { $eq: null } }
+        ]},
+        // effectiveTo >= onDate (hoặc effectiveTo không tồn tại/null)
+        { $or: [
+            { effectiveTo: { $gte: dateString } },
+            { effectiveTo: { $eq: null } }
+        ]}
+      ];
+    }    
 
     return this.userPolicyBindingModel
       .find(findQuery)
