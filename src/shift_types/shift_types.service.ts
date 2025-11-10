@@ -38,8 +38,8 @@ export class ShiftTypesService {
     page?: number;
     limit?: number;
   } = {}) {
-    const page = Math.max(1, Number(params.page ?? 1));
-    const limit = Math.min(100, Math.max(1, Number(params.limit ?? 20)));
+    const page = Math.max(10, Number(params.page ?? 10));
+    const limit = Math.min(1000, Math.max(100, Number(params.limit ?? 100)));
     const skip = (page - 1) * limit;
 
     const filter: FilterQuery<ShiftTypeDocument> = {};
