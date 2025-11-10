@@ -7,6 +7,7 @@ import { DailyService } from './daily.service';
 import { WorkShiftType } from './common/work-shift-type.enum';
 import { SummaryService } from './summary.service';
 import { AttendanceLog, AttendanceLogDocument } from './schemas/attendance-log.schema';
+import { UsersService } from 'src/users/users.service';
 
 const TZ = 'Asia/Bangkok';
 
@@ -136,7 +137,7 @@ async runLogsToDailySmart(
   let targetUsers: string[] = [];
   if (userId) {
     targetUsers = [userId];
-  } else {
+  } else {    
     targetUsers = await this.distinctUsersByDailyRange(rangeFrom, rangeTo);
   }
 
@@ -174,6 +175,7 @@ async runLogsToDailySmart(
 }
 
 async runLogsOverNightToDailySmart(
+  orgId?: string,
   userId?: string,
   from?: string,
   to?: string,  
@@ -195,7 +197,7 @@ async runLogsOverNightToDailySmart(
   let targetUsers: string[] = [];
   if (userId) {
     targetUsers = [userId];
-  } else {
+  } else {    
     targetUsers = await this.distinctUsersByDailyRange(rangeFrom, rangeTo);
   }
 
