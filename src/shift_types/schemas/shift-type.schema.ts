@@ -47,7 +47,7 @@ export class ShiftType {
   code!: string;             
 
   @Prop({ type: String, required: true })
-  name!: string;              // ví dụ: 'Ca hành chính 5.5 ngày'
+  name!: string;              
 
   @Prop({ type: String, default: 'Asia/Bangkok' })
   timezone?: string;
@@ -55,8 +55,11 @@ export class ShiftType {
   @Prop({ type: WeeklyRulesSchema, required: true })
   weeklyRules!: WeeklyRules;
 
-  @Prop({ type: Boolean, default: false })
+  @Prop({ type: Boolean, default: true })
   isCheckTwoTimes?: boolean; // có phải chỉ cần chấm công 2 lần cả ngày
+
+  @Prop({ type: Boolean, default: false })
+  isMixSession?: boolean; // có phải chỉ cần chấm công 2 lần cả ngày
 }
 export type ShiftTypeDocument = ShiftType & Document;
 export const ShiftTypeSchema = SchemaFactory.createForClass(ShiftType);

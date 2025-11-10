@@ -5,8 +5,6 @@ import { get, Model, Types } from 'mongoose';
 import { AttendanceDaily, AttendanceDailyDocument } from './schemas/attendance-daily.schema';
 import { AttendanceLog, AttendanceLogDocument } from './schemas/attendance-log.schema';
 import { WorkShiftType } from './common/work-shift-type.enum';
-import { SHIFT_REGISTRY, ShiftDefinition, resolveSessionsForDate, resolveIsCheckTwoTimesForShiftDefinition } from './common/shift-definition';
-import { Holiday, HolidayDocument } from './schemas/holiday-exception.schema';
 import { HolidayService } from './holiday.service';
 
 import { UserPolicyBindingService } from 'src/user-policies/user-policies.service';
@@ -24,6 +22,8 @@ interface ListUserPolicyQueryDto {
   limit?: number;
 }
 
+
+
 interface UpsertByShiftOverrideDto {
   userId: string;
   dateKey: string;        // YYYY-MM-DD
@@ -35,6 +35,11 @@ interface UpsertByShiftOverrideDto {
 interface UpsertOptions {
   allowWeekendWork?: boolean;
   halfThresholdMinutes?: number; // ngưỡng chấm HALF
+}
+
+interface MixSessionResult {
+  pairsBySession: Record<string, SessionPair[]>;
+  workingSession: 'AM' | 'PM' | 'AM_OVERTIME' | 'ABSENT';
 }
 
 interface SessionPair { in: Date; out?: Date }
@@ -163,7 +168,7 @@ export class DailyService {
 
     let userShiftType = [];
     try {
-      userShiftType = await this.userPolicyBindingSvc.findAll(querry);      
+      userShiftType = await this.userPolicyBindingSvc.findAll(querry);
     }
     catch (error) {
       console.log('findAll execution failed');
@@ -257,28 +262,29 @@ export class DailyService {
       agg.status = 'HOLIDAY';
     }
     const replacementDocument = {
-          userId,
-          dateKey,
-          shiftType: policyCode,
-          workedCheckIn: agg.workedCheckIn,
-          hourWork: agg.hourWork,
-          workedMinutes: agg.workedMinutes,
-          lateMinutes: agg.lateMinutes,
-          earlyLeaveMinutes: agg.earlyLeaveMinutes,
-          status: agg.status,
-          sessions: agg.sessions, // nếu schema có
-          ...(function () {
-            const legacy = projectLegacySessions(agg.sessions ?? []);
-            const set: any = {};
-            if (legacy.am) set.am = legacy.am;
-            if (legacy.pm) set.pm = legacy.pm;
-            if (legacy.ov) set.ov = legacy.ov;
-            return set;
-          })(), };
+      userId,
+      dateKey,
+      shiftType: policyCode,
+      workedCheckIn: agg.workedCheckIn,
+      hourWork: agg.hourWork,
+      workedMinutes: agg.workedMinutes,
+      lateMinutes: agg.lateMinutes,
+      earlyLeaveMinutes: agg.earlyLeaveMinutes,
+      status: agg.status,
+      sessions: agg.sessions, // nếu schema có
+      ...(function () {
+        const legacy = projectLegacySessions(agg.sessions ?? []);
+        const set: any = {};
+        if (legacy.am) set.am = legacy.am;
+        if (legacy.pm) set.pm = legacy.pm;
+        if (legacy.ov) set.ov = legacy.ov;
+        return set;
+      })(),
+    };
 
     await this.dailyModel.replaceOne(
       { userId, dateKey },
-       replacementDocument,
+      replacementDocument,
       { upsert: true },
     );
   }
@@ -377,7 +383,7 @@ export class DailyService {
           isManualEdit,
           ...(function () {
             const legacy = projectLegacySessions(agg.sessions ?? []);
-            const set: any = {};           
+            const set: any = {};
             if (legacy.am) set.am = legacy.am;
             if (legacy.pm) set.pm = legacy.pm;
             if (legacy.ov) set.ov = legacy.ov;
@@ -389,7 +395,7 @@ export class DailyService {
     );
   }
 
-  async upsertTimesNoSession(dto: UpsertTimesDto) {    
+  async upsertTimesNoSession(dto: UpsertTimesDto) {
     const userId = dto.userId;
     const dateKey = dto.dateKey;
     const tz = dto.tz || TZ;
@@ -434,33 +440,33 @@ export class DailyService {
     const agg = aggregateNoSession(pairsByCode);
     const realWorkedMinutes = (workedMinutes > 0) ? workedMinutes : agg.workedMinutes;
     const replacementDocument = {
-    userId,
-          dateKey,
-          shiftType: 'NO' as any, // hoặc 'No' tùy bạn, cast để qua type
-          workedCheckIn: agg.workedCheckIn,
-          hourWork: agg.hourWork,
-          workedMinutes: realWorkedMinutes,
-          lateMinutes: lateMinutes,
-          earlyLeaveMinutes: earlyLeaveMinutes,
-          status: agg.status, // ABSENT | PRESENT theo tổng phút
-          sessions: agg.sessions,
-          computedAt: new Date(),
-          isManualEdit,
-          editNote,
-          ...(function () {
-            const legacy = projectLegacySessions(agg.sessions ?? []);
-            const set: any = {};
-            if (legacy.am) set.am = legacy.am;
-            if (legacy.pm) set.pm = legacy.pm;
-            if (legacy.ov) set.ov = legacy.ov;
-            return set;
-    })(),
-};
+      userId,
+      dateKey,
+      shiftType: 'NO' as any, // hoặc 'No' tùy bạn, cast để qua type
+      workedCheckIn: agg.workedCheckIn,
+      hourWork: agg.hourWork,
+      workedMinutes: realWorkedMinutes,
+      lateMinutes: lateMinutes,
+      earlyLeaveMinutes: earlyLeaveMinutes,
+      status: agg.status, // ABSENT | PRESENT theo tổng phút
+      sessions: agg.sessions,
+      computedAt: new Date(),
+      isManualEdit,
+      editNote,
+      ...(function () {
+        const legacy = projectLegacySessions(agg.sessions ?? []);
+        const set: any = {};
+        if (legacy.am) set.am = legacy.am;
+        if (legacy.pm) set.pm = legacy.pm;
+        if (legacy.ov) set.ov = legacy.ov;
+        return set;
+      })(),
+    };
 
     // 3) Ghi DB
     await this.dailyModel.replaceOne(
       { userId, dateKey },
-       replacementDocument,
+      replacementDocument,
       { upsert: true },
     );
 
@@ -548,6 +554,225 @@ export class DailyService {
 
     return { ok: true, logs: rawLogs.length, workedMinutes: worked, status };
   }
+
+  async upsertByShiftDefinitionOverlapped(
+    userId: string,
+    dateKey: string,
+    opts?: UpsertOptions,
+  ) {
+    // 0) Chặn ghi đè nếu bản ghi người dùng đã “edit tay”
+    const dataAlreadyInDb = await this.dailyModel.findOne({ userId, dateKey }).lean();
+    const isManualEdit = dataAlreadyInDb?.isManualEdit || false;
+    if (isManualEdit) {
+      this.logger.log(`[SKIP] ${userId} ${dateKey} isManualEdit=true`);
+      return;
+    }
+
+    // 1) Lấy ShiftType hiệu lực và sessions trong ngày
+    const TZ = 'Asia/Bangkok';
+    const bindings = await this.userPolicyBindingSvc.findAll({
+      policyType: UserPolicyType.SHIFT_TYPE,
+      userId: new Types.ObjectId(userId),
+      onDate: dateKey,
+    });
+
+    const policyCode = bindings?.[0]?.policyCode || WorkShiftType.REGULAR;
+    const shiftTypeDef = await this.shiftTypeSvc.findByCode(policyCode as any);
+    if (!shiftTypeDef) throw new Error(`Không tìm thấy ShiftType: ${policyCode}`);
+
+    const dow = getDow(dateKey, TZ);
+    const sessions: ShiftSession[] = (shiftTypeDef.weeklyRules[String(dow) as keyof WeeklyRules] || [])
+      .filter(Boolean);
+
+    // 2) Khoanh khung thời gian lấy logs cho ngày N (nới biên để bắt đủ earliest/latest)
+    //    Bạn có thể tái dùng logic khung của hàm cũ; dưới đây minh hoạ lấy logs trong ngày theo TZ
+    const dayStart = zonedTimeToUtc(dateKey, '00:00:00', TZ);
+    const dayEnd = zonedTimeToUtc(dateKey, '23:59:59', TZ);
+    const rawLogs = await this.logsModel
+      .find({
+        userId: new Types.ObjectId(userId),
+        timestamp: { $gte: dayStart, $lte: dayEnd },
+      })
+      .sort({ timestamp: 1 })
+      .lean();
+
+    const logs: Date[] = rawLogs.map(l => new Date(l.timestamp)).sort((a, b) => a.getTime() - b.getTime());
+    if (logs.length === 0) {
+      // upsert vắng mặt
+      const replacementDocument = {
+        userId: new Types.ObjectId(userId),
+        dateKey,
+        status: 'ABSENT',
+        workedMinutes: 0,
+        lateMinutes: 0,
+        earlyLeaveMinutes: 0,
+        workedCheckIn: 0,
+        hourWork: sessions.reduce((s, x) => s, 0),
+        sessions: {},
+        isManualEdit: false,
+      }
+      await this.dailyModel.replaceOne(
+        { userId, dateKey },
+        replacementDocument,
+      { upsert: true },
+      );
+      return;
+    }
+
+    // 3) Dựng cặp in/out theo rule 1h (AM/PM có thể chồng lấn)
+    const { pairsBySession, zeroLateForPm } =
+      buildPairsOverlappedAmPmByEarliestLatest(logs, sessions, dateKey, TZ);
+
+    // 4) Tính tổng hợp
+    let agg = aggregateSessions(pairsBySession, sessions, dateKey, TZ, opts);
+
+    // 4.1) Yêu cầu “bỏ lateMinutes của PM” khi tính cả 2 ca và gán firstIn PM = end(AM)
+    if (zeroLateForPm && agg.sessions) {
+      for (const s of agg.sessions) {
+        if ((s.code || '').toUpperCase() === 'PM') {
+          // trừ phần late PM khỏi tổng
+          agg.lateMinutes -= (s.lateMinutes || 0);
+          s.lateMinutes = 0;
+        }
+      }
+    }
+
+    // 5) Kết xuất về schema “legacy sessions” (am/pm/ov)
+    const sessionsLegacy = projectLegacySessions(agg.sessions || []);
+
+    const replacementDocument = {
+      userId: new Types.ObjectId(userId),
+      dateKey,
+      workedMinutes: agg.workedMinutes,
+      lateMinutes: agg.lateMinutes,
+      earlyLeaveMinutes: agg.earlyLeaveMinutes,
+      workedCheckIn: agg.workedCheckIn,
+      hourWork: agg.hourWork,
+      status: agg.status,
+      sessions: sessionsLegacy,
+      isManualEdit: false,
+    }
+
+    // 6) Ghi DB
+    await this.dailyModel.updateOne(
+      { userId, dateKey },
+      replacementDocument,
+      { upsert: true },
+    );
+  }
+
+  async upsertByShiftDefinitionMix(
+  userId: string,
+  dateKey: string,
+  opts?: UpsertOptions,
+) {
+  // 0) Chặn ghi đè nếu đã manual edit
+  const dataAlreadyInDb = await this.dailyModel.findOne({ userId, dateKey }).lean();
+  const isManualEdit = dataAlreadyInDb?.isManualEdit || false;
+  if (isManualEdit) {
+    this.logger.log(`[SKIP] ${userId} ${dateKey} isManualEdit=true`);
+    return;
+  }
+
+  // 1) Lấy ShiftType và sessions
+  let querry: ListUserPolicyQueryDto = {
+    policyType: UserPolicyType.SHIFT_TYPE,
+    userId: new Types.ObjectId(userId),
+    onDate: dateKey,
+  };
+
+  const userShiftType = await this.userPolicyBindingSvc.findAll(querry);
+  let policyCode = 'REGULAR';
+  if (userShiftType.length > 0) {
+    policyCode = userShiftType[0].policyCode;
+  }
+
+  const shiftTypeDef = await this.shiftTypeSvc.findByCode(policyCode);
+  if (!shiftTypeDef) {
+    throw new Error(`Không tìm thấy định nghĩa ca làm việc cho code: ${policyCode}`);
+  }
+
+  const dow = getDow(dateKey, TZ);
+  let ShiftSessionsForDay: ShiftSession[] = [];
+  let isMixSession = false;
+
+  if (shiftTypeDef) {
+    ShiftSessionsForDay = shiftTypeDef.weeklyRules[String(dow) as keyof WeeklyRules] ?? [];
+    isMixSession = (shiftTypeDef as any).isMixSession || false;
+  }
+
+  // Nếu KHÔNG phải Mix Session => dùng hàm cũ
+  if (!isMixSession) {
+    return this.upsertByShiftDefinition(userId, dateKey, opts);
+  }
+
+  // 2) Lấy logs trong ngày
+  const startOfN = zonedTimeToUtc(dateKey, '00:00:00', TZ);
+  const endOfN = zonedTimeToUtc(dateKey, '23:59:59', TZ);
+
+  const rawLogs = await this.logsModel
+    .find({ userId, timestamp: { $gte: startOfN, $lte: endOfN } })
+    .sort({ timestamp: 1 })
+    .lean<AttendanceLogDocument[]>();
+
+  const logTimes = rawLogs.map((x) => new Date(x.timestamp));
+
+  // 3) Build pairs với logic Mix Session
+  const { pairsBySession, workingSession } = buildPairsMixSession(
+    logTimes,
+    ShiftSessionsForDay,
+    dateKey,
+    TZ,
+  );
+
+  // 4) Aggregate với logic Mix Session
+  const agg = aggregateMixSession(
+    pairsBySession,
+    ShiftSessionsForDay,
+    dateKey,
+    TZ,
+    workingSession,
+    opts,
+  );
+
+  // 5) Kiểm tra holiday
+  const holiday = await this.holidaySvc.findEffective(dateKey);
+  if (holiday) {
+    agg.status = 'HOLIDAY';
+  }
+
+  // 6) Chuẩn bị document để lưu
+  const replacementDocument = {
+    userId,
+    dateKey,
+    shiftType: policyCode,
+    workedCheckIn: agg.workedCheckIn,
+    hourWork: agg.hourWork,
+    workedMinutes: agg.workedMinutes,
+    lateMinutes: agg.lateMinutes,
+    earlyLeaveMinutes: agg.earlyLeaveMinutes,
+    status: agg.status,
+    sessions: agg.sessions,
+    ...(function () {
+      const legacy = projectLegacySessions(agg.sessions ?? []);
+      const set: any = {};
+      if (legacy.am) set.am = legacy.am;
+      if (legacy.pm) set.pm = legacy.pm;
+      if (legacy.ov) set.ov = legacy.ov;
+      return set;
+    })(),
+  };
+
+  // 7) Lưu vào DB
+  await this.dailyModel.replaceOne(
+    { userId, dateKey },
+    replacementDocument,
+    { upsert: true },
+  );
+
+  return { ok: true, workingSession };
+}
+
 
   /** Optional: recompute batch */
   async recomputeRange(
@@ -645,7 +870,7 @@ export function buildPairsBySessionFlexible(
 
   if (isCheckTwoTimes) {
     const shiftSessions = sessions
-      .filter((s): s is ShiftSession => !!s) // Lọc bỏ ca null/undefined nếu có
+      .filter((s): s is ShiftSession => !!s)
       .map(s => {
         // Chuyển đổi start/end của ca sang Date object (UTC)
         const start = zonedTimeOrOverflowToUtc(dateKey, `${s.start}:00`, tz);
@@ -660,7 +885,7 @@ export function buildPairsBySessionFlexible(
           end: end,
         };
       })
-      .filter((s): s is { code: SessionCode; start: Date; end: Date } => !!s); // Lọc bỏ các ca không hợp lệ không thuộc SessionCode (cho an toàn)
+      .filter((s): s is { code: SessionCode; start: Date; end: Date } => !!s); 
 
     // 2. Sắp xếp logs và xác định earliest/latest
     const sortedLogs = [...logs].sort((a, b) => a.getTime() - b.getTime());
@@ -681,7 +906,6 @@ export function buildPairsBySessionFlexible(
     if (intersectingShifts.length === 0) {
       return result;
     }
-
 
     // Ca đầu tiên có giao điểm (do shiftSessions đã sắp xếp nên [0] là ca đầu tiên)
     const firstShift = intersectingShifts[0];
@@ -753,6 +977,7 @@ export function buildPairsBySessionFlexible(
 
   return result;
 }
+
 
 export function aggregateSessions(
   pairsBySession: Record<string, SessionPair[]>,
@@ -876,11 +1101,6 @@ export function aggregateNoSession(pairsByCode: Record<string, SessionPair[]>): 
   };
 }
 
-function requireShift(type: WorkShiftType): ShiftDefinition {
-  const def = SHIFT_REGISTRY[type];
-  if (!def) throw new Error(`Unknown WorkShiftType: ${type}`);
-  return def;
-}
 
 function getTzOffsetMinutesAt(utcInstant: Date, tz: string): number {
   // Format that UTC instant in the target time zone
@@ -1028,101 +1248,10 @@ function overlapMs(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): number {
   return Math.max(0, e - s);
 }
 
-// Ước lượng overlap với phiên (để suy luận HALF/FULL cuối tuần)
-function estimateOverlapMinutes(
-  pairs: Array<{ in: Date; out?: Date }>,
-  s: ShiftSession,
-  dateKey: string,
-  tz: string,
-) {
-  const start = zonedTimeToUtc(dateKey, `${s.start}:00`, tz);
-  const end = zonedTimeToUtc(dateKey, `${s.end}:00`, tz);
-  let total = 0;
-  for (const p of pairs) {
-    const o = overlapMs(p.in, p.out ?? p.in, start, end);
-    total += Math.round(o / 60000);
-  }
-  return total;
-}
 
 
-function inferStatus(args: {
-  sessions: ShiftSession[];
-  requiredToday: boolean;
-  pairs: Array<{ in: Date; out?: Date }>;
-  workedMinutes: number;
-  dateKey: string;
-  tz: string;
-  opts: { allowWeekendWork: boolean; halfThresholdMinutes: number };
-}) {
-  const { sessions, requiredToday, pairs, workedMinutes, dateKey, tz, opts } = args;
 
-  if (!requiredToday) {
-    if (!opts.allowWeekendWork || workedMinutes <= 0) return 'ABSENT';
-    const am = sessions.find(s => s.code === 'AM');
-    const pm = sessions.find(s => s.code === 'PM');
-    const th = opts.halfThresholdMinutes;
-    const amO = am ? estimateOverlapMinutes(pairs, am, dateKey, tz) : 0;
-    const pmO = pm ? estimateOverlapMinutes(pairs, pm, dateKey, tz) : 0;
-    if ((amO === 0 || amO >= th) && (pmO === 0 || pmO >= th)) return 'FULL';
-    if (amO >= th) return 'HALF_AM';
-    if (pmO >= th) return 'HALF_PM';
-    return 'PRESENT';
-  }
 
-  // ngày làm việc
-  const amPlan = sessions.find(s => s.code === 'AM');
-  const pmPlan = sessions.find(s => s.code === 'PM');
-  const amFul = amPlan ? calcForSessionFromPairs(pairs, amPlan, dateKey, tz).fulfilled : false;
-  const pmFul = pmPlan ? calcForSessionFromPairs(pairs, pmPlan, dateKey, tz).fulfilled : false;
-
-  const reqCount = sessions.filter(s => s.required !== false).length;
-  const fulfilledCount = (amFul ? 1 : 0) + (pmFul ? 1 : 0);
-  if (fulfilledCount >= 2 || (reqCount === 1 && fulfilledCount === 1)) return 'FULL';
-  if (amFul) return 'HALF_AM';
-  if (pmFul) return 'HALF_PM';
-  return 'ABSENT';
-}
-
-function findLatestSessionEnd(sessions: ShiftSession[]): string {
-  if (sessions.length === 0) return '23:59:59.999';
-  let latestEnd = 0;
-  let latestEndStr = '23:59:59.999';
-
-  for (const s of sessions) {
-    const [hh, mm] = s.end.split(':').map(Number);
-    const endMinutes = hh * 60 + mm;
-
-    if (endMinutes > latestEnd) {
-      latestEnd = endMinutes;
-      latestEndStr = `${hh}:${mm}:00`;
-    }
-  }
-  return latestEndStr;
-}
-
-function findEarliestSessionStart(sessions: ShiftSession[]): string {
-  if (sessions.length === 0) return '23:59:59.999';
-  let earliestStart = 24 * 60;
-  let earliestStartStr = '23:59:59.999';
-
-  for (const s of sessions) {
-    const [hh, mm] = s.start.split(':').map(Number);
-    const startMinutes = hh * 60 + mm;
-
-    // Giờ bắt đầu không bao giờ > 24:00, nhưng cần tính cả graceInMins
-    const grace = s.graceInMins || 0;
-    const effectiveStartMinutes = startMinutes - grace;
-
-    if (effectiveStartMinutes < earliestStart) {
-      earliestStart = effectiveStartMinutes;
-      // Chuyển lại về HH:mm:ss, có thể bị âm (vd: -30 phút)
-      // Để đơn giản, ta chỉ lấy giờ bắt đầu sớm nhất. Hàm zonedTimeToUtc sẽ xử lý offset.
-      earliestStartStr = s.start + ':00';
-    }
-  }
-  return earliestStartStr;
-}
 function zonedTimeToUtc(dateKey: string, timeHHmmss: string, tz: string): Date {
   const [Y, M, D] = dateKey.split("-").map(Number);
   const [hh, mm, ss] = timeHHmmss.split(":").map(Number);
@@ -1228,6 +1357,388 @@ function parseFlexibleLocal(dateKey: string, s: string, tz: string): Date {
   const ss = m[3] ? Number(m[3]) : 0;
   return zonedTimeOrOverflowToUtc(dateKey, `${pad2(hh)}:${pad2(mm)}:${pad2(ss)}`, tz);
 }
+
+/**
+ * Xây cặp in/out cho AM/PM khi cho phép chồng lấn và chỉ dựa vào 2 mốc:
+ * - earliestLog: log sớm nhất trong ngày
+ * - latestLog:   log muộn nhất trong ngày
+ *
+ * Quy tắc (ngưỡng = 60 phút):
+ *  (1) Nếu latest nằm trong PM nhưng latest ≤ end(AM)+1h → chỉ tính AM.
+ *  (2) Nếu latest > end(AM)+1h → tính PM (tuỳ thêm điều kiện dưới).
+ *  (3) Nếu earliest nằm trong AM nhưng earliest ≥ start(PM)-1h → không tính AM.
+ *  (4) Còn lại tính cả 2 ca; lấy end(AM) làm firstIn của PM và bỏ lateMinutes của PM.
+ *
+ * Lưu ý:
+ * - Pairs cắt/clamp theo khung ca: AM: [max(earliest, startAM) → min(latest, endAM)]
+ *   PM: tuỳ case; nếu “tính cả 2 ca”, PM.in = end(AM) (để loại late PM) và PM.out = clamp(latest, endPM).
+ */
+function buildPairsOverlappedAmPmByEarliestLatest(
+  logs: Date[],
+  sessions: ShiftSession[],
+  dateKey: string,
+  tz: string,
+): {
+  pairsBySession: Record<string, { in: Date; out?: Date }[]>;
+  zeroLateForPm: boolean; // khi true, sau khi aggregate sẽ set lateMinutes của PM = 0
+} {
+  const res: Record<string, { in: Date; out?: Date }[]> = {};
+  for (const s of sessions) res[s.code] = [];
+
+  const am = sessions.find(s => (s.code || '').toUpperCase() === 'AM');
+  const pm = sessions.find(s => (s.code || '').toUpperCase() === 'PM');
+
+  if (!am && !pm) return { pairsBySession: res, zeroLateForPm: false };
+  if (!logs || logs.length === 0) return { pairsBySession: res, zeroLateForPm: false };
+
+  const earliest = new Date([...logs].sort((a, b) => a.getTime() - b.getTime())[0]);
+  const latest = new Date([...logs].sort((a, b) => a.getTime() - b.getTime()).slice(-1)[0]);
+
+  const d = (hhmm: string) => zonedTimeToUtc(dateKey, `${hhmm}:00`, tz);
+
+  const startAM = am ? d(am.start) : undefined;
+  const endAM = am ? d(am.end) : undefined;
+  const startPM = pm ? d(pm.start) : undefined;
+  const endPM = pm ? d(pm.end) : undefined;
+
+  const inRange = (t: Date | undefined, a: Date | undefined, b: Date | undefined) =>
+    !!(t && a && b && t.getTime() >= a.getTime() && t.getTime() <= b.getTime());
+
+  const plusMs = (t: Date | undefined, ms: number) => t ? new Date(t.getTime() + ms) : undefined;
+  const minusMs = (t: Date | undefined, ms: number) => t ? new Date(t.getTime() - ms) : undefined;
+
+  const ONE_HOUR = 60 * 60 * 1000;
+
+  // Các cờ tình huống
+  const latestInPM = inRange(latest, startPM, endPM);
+  const earliestInAM = inRange(earliest, startAM, endAM);
+
+  // Helpers clamp
+  const clamp = (t: Date, lo?: Date, hi?: Date): Date => {
+    let x = t;
+    if (lo && x < lo) x = lo;
+    if (hi && x > hi) x = hi;
+    return x;
+  };
+
+  // Quyết định tính AM/PM
+  let takeAM = !!am;
+  let takePM = !!pm;
+  let both = false;
+  let zeroLateForPm = false;
+
+  if (am && pm) {
+    // (1) latest nằm trong PM nhưng latest ≤ end(AM)+1h → chỉ AM
+    if (latestInPM && endAM && latest.getTime() <= plusMs(endAM, ONE_HOUR)!.getTime()) {
+      takePM = false; takeAM = true; both = false;
+    }
+    // (2) latest > end(AM)+1h ⇒ sẽ tính PM (nhưng có thể đồng thời tính AM nếu không rơi vào (3))
+    else if (endAM && latest.getTime() > plusMs(endAM, ONE_HOUR)!.getTime()) {
+      takePM = true; // giữ nguyên takeAM, xét tiếp (3)
+    }
+
+    // (3) earliest nằm trong AM nhưng earliest ≥ start(PM)-1h → không tính AM
+    if (earliestInAM && startPM && earliest.getTime() >= minusMs(startPM, ONE_HOUR)!.getTime()) {
+      takeAM = false;
+    }
+
+    // (4) Còn lại mà cả AM/PM đều true ⇒ tính cả 2
+    both = takeAM && takePM;
+  }
+
+  // Dựng pairs
+  if (am && takeAM) {
+    const inAM = clamp(earliest, startAM, endAM);
+    const outAM = clamp(latest, startAM, endAM);
+    if (outAM.getTime() >= inAM.getTime()) {
+      res[am.code] = [{ in: inAM, out: outAM }];
+    }
+  }
+
+  if (pm && takePM) {
+    // nếu tính cả 2 ca: PM.firstIn = end(AM), bỏ late PM
+    if (both && endAM) {
+      const inPM = clamp(endAM, startPM, endPM);
+      const outPM = clamp(latest, startPM, endPM);
+      if (outPM.getTime() >= inPM.getTime()) {
+        res[pm.code] = [{ in: inPM, out: outPM }];
+        zeroLateForPm = true; // yêu cầu "bỏ lateMinutes của PM"
+      }
+    } else {
+      const inPM = clamp(earliest, startPM, endPM);
+      const outPM = clamp(latest, startPM, endPM);
+      if (outPM.getTime() >= inPM.getTime()) {
+        res[pm.code] = [{ in: inPM, out: outPM }];
+      }
+    }
+  }
+
+  // Đảm bảo key tồn tại (kể cả rỗng)
+  if (am && !res[am.code]) res[am.code] = [];
+  if (pm && !res[pm.code]) res[pm.code] = [];
+
+  return { pairsBySession: res, zeroLateForPm };
+}
+
+function buildPairsMixSession(
+  logs: Date[],
+  sessions: ShiftSession[],
+  dateKey: string,
+  tz: string,
+): MixSessionResult {
+  const result: Record<string, SessionPair[]> = {};
+  for (const s of sessions) result[s.code] = [];
+
+  if (logs.length === 0) {
+    return { 
+      pairsBySession: result, 
+      workingSession: 'ABSENT' 
+    };
+  }
+
+  const am = sessions.find(s => (s.code || '').toUpperCase() === 'AM');
+  const pm = sessions.find(s => (s.code || '').toUpperCase() === 'PM');
+
+  if (!am || !pm) {
+    return { 
+      pairsBySession: result, 
+      workingSession: 'ABSENT' 
+    };
+  }
+
+  // Sắp xếp logs và lấy earliest/latest
+  const sortedLogs = [...logs].sort((a, b) => a.getTime() - b.getTime());
+  const earliest = sortedLogs[0];
+  const latest = sortedLogs[sortedLogs.length - 1];
+
+  // Parse thời gian ca
+  const startAM = zonedTimeOrOverflowToUtc(dateKey, `${am.start}:00`, tz);
+  const endAM = zonedTimeOrOverflowToUtc(dateKey, `${am.end}:00`, tz);
+  const startPM = zonedTimeOrOverflowToUtc(dateKey, `${pm.start}:00`, tz);
+  const endPM = zonedTimeOrOverflowToUtc(dateKey, `${pm.end}:00`, tz);
+
+  const ONE_HOUR = 60 * 60 * 1000;
+
+  // Ngưỡng kiểm tra
+  const amStartPlus1h = new Date(startAM.getTime() + ONE_HOUR);
+  const amEndPlus1h = new Date(endAM.getTime() + ONE_HOUR);
+  const pmStartPlus1h = new Date(startPM.getTime() + ONE_HOUR);
+
+  // === CASE 1: Làm ca AM (có log không vượt quá am.start + 1h) ===
+  if (earliest.getTime() <= amStartPlus1h.getTime()) {
+    
+    // CASE 1a: Log cuối KHÔNG vượt quá (am.end + 1h) => CHỈ tính AM
+    if (latest.getTime() <= amEndPlus1h.getTime()) {
+      const inAM = new Date(Math.max(earliest.getTime(), startAM.getTime()));
+      const outAM = new Date(Math.min(latest.getTime(), endAM.getTime()));
+      
+      if (outAM.getTime() >= inAM.getTime()) {
+        result[am.code] = [{ in: inAM, out: outAM }];
+      }
+      
+      return {
+        pairsBySession: result,
+        workingSession: 'AM'
+      };
+    }
+    
+    // CASE 1b: Log cuối VƯỢT QUÁ (am.end + 1h) => Tính TĂNG CA từ AM
+    else {
+      const inAM = new Date(Math.max(earliest.getTime(), startAM.getTime()));
+      const outOvertime = new Date(Math.min(latest.getTime(), endPM.getTime()));
+      
+      if (outOvertime.getTime() >= inAM.getTime()) {
+        result[am.code] = [{ in: inAM, out: outOvertime }];
+      }
+      
+      return {
+        pairsBySession: result,
+        workingSession: 'AM_OVERTIME'
+      };
+    }
+  }
+  
+  // === CASE 2: KHÔNG làm AM, kiểm tra có làm PM không ===
+  // Điều kiện: có log không vượt quá (pm.start + 1h)
+  if (earliest.getTime() <= pmStartPlus1h.getTime()) {
+    const inPM = new Date(Math.max(earliest.getTime(), startPM.getTime()));
+    const outPM = new Date(Math.min(latest.getTime(), endPM.getTime()));
+    
+    if (outPM.getTime() >= inPM.getTime()) {
+      result[pm.code] = [{ in: inPM, out: outPM }];
+    }
+    
+    return {
+      pairsBySession: result,
+      workingSession: 'PM'
+    };
+  }
+
+  // === CASE 3: Không thuộc trường hợp nào => ABSENT ===
+  return {
+    pairsBySession: result,
+    workingSession: 'ABSENT'
+  };
+}
+
+/**
+ * Aggregate cho Mix Session với logic late/early đặc biệt
+ */
+function aggregateMixSession(
+  pairsBySession: Record<string, SessionPair[]>,
+  sessions: ShiftSession[],
+  dateKey: string,
+  tz: string,
+  workingSession: 'AM' | 'PM' | 'AM_OVERTIME' | 'ABSENT',
+  opts?: UpsertOptions,
+): AggregateResult {
+  const am = sessions.find(s => (s.code || '').toUpperCase() === 'AM');
+  const pm = sessions.find(s => (s.code || '').toUpperCase() === 'PM');
+
+  if (!am || !pm || workingSession === 'ABSENT') {
+    return {
+      workedMinutes: 0,
+      lateMinutes: 0,
+      earlyLeaveMinutes: 0,
+      workedCheckIn: 0,
+      hourWork: 0,
+      status: 'ABSENT',
+      sessions: [],
+    };
+  }
+
+  const startAM = zonedTimeOrOverflowToUtc(dateKey, `${am.start}:00`, tz);
+  const endAM = zonedTimeOrOverflowToUtc(dateKey, `${am.end}:00`, tz);
+  const startPM = zonedTimeOrOverflowToUtc(dateKey, `${pm.start}:00`, tz);
+  const endPM = zonedTimeOrOverflowToUtc(dateKey, `${pm.end}:00`, tz);
+
+  const perSession: AggregateResult['sessions'] = [];
+  let totalWorked = 0;
+  let totalLate = 0;
+  let totalEarly = 0;
+  let totalWorkedCheckIn = 0;
+  let totalHourWork = 0;
+
+  // Xử lý theo từng case
+  if (workingSession === 'AM' || workingSession === 'AM_OVERTIME') {
+    const pairs = pairsBySession[am.code] || [];
+    
+    if (pairs.length > 0 && pairs[0].in && pairs[0].out) {
+      const firstIn = pairs[0].in;
+      const lastOut = pairs[0].out;
+
+      // Tính workedMinutes
+      const worked = Math.floor((lastOut.getTime() - firstIn.getTime()) / 60000);
+      const workedCheckIn = worked;
+      
+      // Tính late/early CHỈ dựa trên khung giờ AM
+      let late = 0;
+      let early = 0;        
+      
+      // Late: so với AM start + grace
+      if (firstIn.getTime() > startAM.getTime()) {
+        late = Math.floor((firstIn.getTime() - startAM.getTime()) / 60000);
+      }
+      
+      // Early: chỉ tính nếu KHÔNG phải AM_OVERTIME và out < AM end - grace
+      if (workingSession === 'AM') {
+        if (lastOut.getTime() < endAM.getTime()) {
+          early = Math.floor((endAM.getTime() - lastOut.getTime()) / 60000);
+        }
+      }
+      
+      // Tính hourWork
+      const breakMins = am.breakMinutes ?? 0;
+      const hourWork = Math.floor((endAM.getTime() - startAM.getTime()) / 60000) - breakMins;
+      
+      totalWorked = worked;
+      totalLate = late;
+      totalEarly = early;
+      totalWorkedCheckIn = workedCheckIn;
+      totalHourWork = hourWork;
+
+      perSession.push({
+        code: am.code,
+        workedMinutes: worked,
+        hourWork: hourWork,
+        workedCheckIn: workedCheckIn,
+        lateMinutes: late,
+        earlyLeaveMinutes: early,
+        pairs,
+      });
+    }
+  } 
+  else if (workingSession === 'PM') {
+    const pairs = pairsBySession[pm.code] || [];
+    
+    if (pairs.length > 0 && pairs[0].in && pairs[0].out) {
+      const firstIn = pairs[0].in;
+      const lastOut = pairs[0].out;
+
+      // Tính workedMinutes
+      const worked = Math.floor((lastOut.getTime() - firstIn.getTime()) / 60000);
+      const workedCheckIn = worked;
+      
+      // Tính late/early dựa trên khung giờ PM
+      let late = 0;
+      let early = 0;    
+      
+      // Late: so với PM start + grace
+      if (firstIn.getTime() > startPM.getTime() ) {
+        late = Math.floor((firstIn.getTime() - startPM.getTime()) / 60000);
+      }
+      
+      // Early: so với PM end - grace
+      if (lastOut.getTime() < endPM.getTime()) {
+        early = Math.floor((endPM.getTime() - lastOut.getTime()) / 60000);
+      }
+      
+      // Tính hourWork
+      const breakMins = pm.breakMinutes ?? 0;
+      const hourWork = Math.floor((endPM.getTime() - startPM.getTime()) / 60000) - breakMins;
+      
+      totalWorked = worked;
+      totalLate = late;
+      totalEarly = early;
+      totalWorkedCheckIn = workedCheckIn;
+      totalHourWork = hourWork;
+
+      perSession.push({
+        code: pm.code,
+        workedMinutes: worked,
+        hourWork: hourWork,
+        workedCheckIn: workedCheckIn,
+        lateMinutes: late,
+        earlyLeaveMinutes: early,
+        pairs,
+      });
+    }
+  }
+
+  // Xác định status
+  const half = opts?.halfThresholdMinutes ?? 120;
+  let status: any;
+  if (totalWorked <= 0) {
+    status = 'ABSENT';
+  } else if (totalWorked < half) {
+    status = 'HALF';
+  } else {
+    status = 'FULL';
+  }
+
+  return {
+    workedMinutes: totalWorked,
+    lateMinutes: totalLate,
+    earlyLeaveMinutes: totalEarly,
+    workedCheckIn: totalWorkedCheckIn,
+    hourWork: totalHourWork,
+    status,
+    sessions: perSession,
+  };
+}
+
+
+
 
 
 

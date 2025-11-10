@@ -218,7 +218,8 @@ async runLogsOverNightToDailySmart(
         // Đã có dữ liệu, dữ liệu đã chỉnh sửa tay -> bỏ qua
         continue;
       }
-      await this.daily.upsertByShiftDefinition(uid, dk, {
+      await this.daily.upsertByShiftDefinitionMix(uid, dk, {
+      //   await this.daily.upsertByShiftDefinition(uid, dk, {
         allowWeekendWork: false,
         halfThresholdMinutes: 20,
       });

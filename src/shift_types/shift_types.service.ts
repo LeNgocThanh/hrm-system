@@ -19,7 +19,8 @@ export class ShiftTypesService {
         code: dto.code,
         name: dto.name,
         timezone: dto.timezone ?? 'Asia/Bangkok',
-        isCheckTwoTimes : dto.isCheckTwoTimes ?? false,
+        isCheckTwoTimes : dto.isCheckTwoTimes ?? true,
+        isMixSession : dto.isMixSession ?? false,
         weeklyRules: dto.weeklyRules,
       });
       return doc.toObject();
@@ -85,6 +86,7 @@ export class ShiftTypesService {
         ...(dto.code ? { code: dto.code } : {}),
         ...(dto.name ? { name: dto.name } : {}),
         ...(dto.isCheckTwoTimes !== undefined ? { isCheckTwoTimes: dto.isCheckTwoTimes } : {}),
+        ...(dto.isMixSession !== undefined ? { isMixSession: dto.isMixSession } : {}),
         ...(dto.timezone ? { timezone: dto.timezone } : {}),
         ...(dto.weeklyRules ? { weeklyRules: dto.weeklyRules as any } : {}),
       },

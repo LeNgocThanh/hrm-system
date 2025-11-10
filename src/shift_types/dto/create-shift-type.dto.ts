@@ -26,7 +26,11 @@ export class CreateShiftTypeDto {
   @Type(() => WeeklyRulesDto)
   weeklyRules!: WeeklyRulesDto;
 
-  @ApiPropertyOptional({ description: 'Chỉ cần chấm công 2 lần cả ngày', example: false })
+  @ApiPropertyOptional({ description: 'Chỉ cần chấm công 2 lần cả ngày', example: true })
   @IsOptional()
   isCheckTwoTimes?: boolean;
+
+  @ApiPropertyOptional({ description: 'Có thể làm 1 trong 2 ca và các ca chồng lấn', example: false })
+  @IsOptional()
+  isMixSession?: boolean;
 }
