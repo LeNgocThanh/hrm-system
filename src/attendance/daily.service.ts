@@ -1127,21 +1127,6 @@ function getTzOffsetMinutesAt(utcInstant: Date, tz: string): number {
   return offsetMinutes;
 }
 
-// Tính offset (ms) giữa UTC và timeZone cho một thời điểm UTC
-function tzOffsetMs(dateUtc: Date, timeZone: string): number {
-  const dtf = new Intl.DateTimeFormat('en-US', {
-    timeZone,
-    hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
-  const parts = dtf.formatToParts(dateUtc);
-  const map: any = {};
-  for (const p of parts) if (p.type !== 'literal') map[p.type] = parseInt(p.value, 10);
-  const asUTC = Date.UTC(map.year, map.month - 1, map.day, map.hour, map.minute, map.second);
-  return asUTC - dateUtc.getTime();
-}
-
 // Lấy day-of-week local (0=CN..6=Thứ 7)
 function getDow(dateKey: string, timeZone: string): Dow {
   const noonUtc = zonedTimeToUtc(dateKey, '12:00:00', timeZone); // trưa local tránh DST edge
@@ -1445,8 +1430,8 @@ function buildPairsMixSession(
     
     // CASE 1a: Log cuối KHÔNG vượt quá (am.end + 1h) => CHỈ tính AM
     if (latest.getTime() <= amEndPlus1h.getTime()) {
-      const inAM = new Date(Math.max(earliest.getTime(), startAM.getTime()));
-      const outAM = new Date(Math.min(latest.getTime(), endAM.getTime()));
+      const inAM = new Date(earliest.getTime());
+      const outAM = new Date(latest.getTime());
       
       if (outAM.getTime() >= inAM.getTime()) {
         result[am.code] = [{ in: inAM, out: outAM }];
@@ -1460,8 +1445,8 @@ function buildPairsMixSession(
     
     // CASE 1b: Log cuối VƯỢT QUÁ (am.end + 1h) => Tính TĂNG CA từ AM
     else {
-      const inAM = new Date(Math.max(earliest.getTime(), startAM.getTime()));
-      const outOvertime = new Date(Math.min(latest.getTime(), endPM.getTime()));
+      const inAM = new Date(earliest.getTime());
+      const outOvertime = new Date(latest.getTime());
       
       if (outOvertime.getTime() >= inAM.getTime()) {
         result[am.code] = [{ in: inAM, out: outOvertime }];
@@ -1477,8 +1462,8 @@ function buildPairsMixSession(
   // === CASE 2: KHÔNG làm AM, kiểm tra có làm PM không ===
   // Điều kiện: có log không vượt quá (pm.start + 1h)
   if (earliest.getTime() <= pmStartPlus1h.getTime()) {
-    const inPM = new Date(Math.max(earliest.getTime(), startPM.getTime()));
-    const outPM = new Date(Math.min(latest.getTime(), endPM.getTime()));
+    const inPM = new Date(earliest.getTime());
+    const outPM = new Date(latest.getTime());
     
     if (outPM.getTime() >= inPM.getTime()) {
       result[pm.code] = [{ in: inPM, out: outPM }];
