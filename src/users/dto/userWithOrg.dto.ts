@@ -5,4 +5,5 @@ export class UserWithOrgResponseDto extends UserResponseDto {
   organizationId?: string;
   organizationName?: string;
   userCode?: string;
+  organizationPath?: string | null;
 }

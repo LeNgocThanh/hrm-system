@@ -97,6 +97,7 @@ export class UsersService {
         userCode: userCode,
         organizationId: org?._id?.toString(),
         organizationName: org?.name ?? null,
+        organizationPath: org?.path || null,
       });
     } else {
       // Nếu không có assignment chính, vẫn push user để giữ danh sách đầy đủ
@@ -105,6 +106,7 @@ export class UsersService {
         userCode: null,
         organizationId: null,
         organizationName: null,
+        organizationPath: null,
       });
     }
   }
