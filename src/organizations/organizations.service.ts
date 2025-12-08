@@ -225,6 +225,11 @@ export class OrganizationsService {
     return { totalUsers: users.length, users };
   }
 
+ async findByCode(code: string): Promise<OrganizationResponseDto> {
+    const organization = await this.organizationModel.findOne({code : code}).exec();
+    return organization?.toObject() as unknown as OrganizationResponseDto;
+  }
+
   async findUsersInTreeNew(
     orgId: string,
   ): Promise<{

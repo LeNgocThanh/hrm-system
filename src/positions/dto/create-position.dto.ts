@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsNumber, IsBoolean, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePositionDto {
@@ -27,4 +27,10 @@ export class CreatePositionDto {
   @IsOptional()
   @IsBoolean({ message: 'IsActive must be a boolean' })
   isActive?: boolean;
+
+  @ApiPropertyOptional({ description: 'Position code' })
+    @IsOptional()
+    @ValidateIf(o => o.code !== null)
+    @IsString()
+    code?: string | null;
 } 

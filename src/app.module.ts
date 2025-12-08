@@ -25,6 +25,8 @@ import { UserTimeEntriesModule } from './user-time-entries/user-time-entries.mod
 import { AttendanceModule } from './attendance/attendance.module';
 import { ShiftTypesModule } from './shift_types/shift_types.module';
 import { UserPoliciesModule } from './user-policies/user-policies.module';
+import { ShiftSessionsModule } from './shift-sessions/shift-sessions.module';
+import { UserShiftSessionModule } from './user-shift-session/user-shift-session.module';
 
 
 @Module({
@@ -57,7 +59,9 @@ import { UserPoliciesModule } from './user-policies/user-policies.module';
     UserTimeEntriesModule,
     AttendanceModule,
     ShiftTypesModule,
-    UserPoliciesModule, 
+    UserPoliciesModule,
+    ShiftSessionsModule,
+    UserShiftSessionModule, 
   ]
 })
 export class AppModule {}

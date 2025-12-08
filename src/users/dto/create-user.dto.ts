@@ -15,7 +15,7 @@ export class CreateUserDto {
 
   @ApiProperty({ description: 'Email address of the user' })
   @IsEmail({}, { message: 'Please provide a valid email address' }) 
-  email: string;
+  email?: string;
 
   @ApiPropertyOptional({ description: 'Phone number of the user' })
   @IsOptional()
@@ -62,4 +62,14 @@ export class CreateUserDto {
   @ApiPropertyOptional({ description: 'Creation time' })
   @IsOptional()
   createTime?: Date;
+}
+
+export interface ImportUserRow {
+  fullName: string;
+  gender: string;
+  email?: string;
+  phone?: string;
+  birthDay?: globalThis.Date;
+  orgCode: string;
+  userCode?: string;
 }

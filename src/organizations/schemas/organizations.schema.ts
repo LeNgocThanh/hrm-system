@@ -6,7 +6,7 @@ export type OrganizationDocument = Organization & Document;
 @Schema({ timestamps: true })
 export class Organization {
   @Prop({ required: true })
-  name: string;
+  name: string;  
 
   @Prop({ enum: ['group', 'company', 'division', 'department'], default: 'department' })
   type: string;
@@ -19,9 +19,9 @@ export class Organization {
 
   @Prop({ default: '' })
   path: string; // ví dụ: /group_id/company_id/division_id
-
-  @Prop()
-  code?: string;
+  
+  @Prop({ unique: true, sparse: true })
+  code?: string | null;
 
   @Prop()
   description?: string;

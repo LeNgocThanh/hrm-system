@@ -19,16 +19,16 @@ export class UserAssignment {
   positionId?: Types.ObjectId;
 
   @Prop({ type: [Types.ObjectId], ref: 'Role', default: [] })
-  roleIds: Types.ObjectId[];
+  roleIds?: Types.ObjectId[];
 
-  @Prop({ default: false })
+  @Prop({ default: true })
   isPrimary: boolean; // Có phải vị trí chính của user không
 
   @Prop({ default: true })
   isActive: boolean;
 
   @Prop({ type: Date })
-  timeIn: Date;
+  timeIn?: Date;
 
   @Prop({ type: Date })
   timeOut?: Date;

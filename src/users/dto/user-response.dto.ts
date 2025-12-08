@@ -20,7 +20,7 @@ export class UserResponseDto {
   gender: string;
 
   @ApiProperty({ description: 'Details of the user' })
-  details: string;
+  details?: string;
 
   @ApiProperty({ description: 'Hashed password stored in database' })
   password?: string;

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber, IsBoolean } from 'class-validator';
+import { IsOptional, IsString, IsNumber, IsBoolean, ValidateIf } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdatePositionDto {
@@ -7,12 +7,18 @@ export class UpdatePositionDto {
   @IsString({ message: 'Position name must be a string' })
   name?: string;
 
+  @ApiPropertyOptional({ description: 'Organization code' })
+  @IsOptional()
+  @ValidateIf(o => o.code !== null)
+  @IsString()
+  code?: string | null;
+
   @ApiPropertyOptional({ description: 'Description of the position' })
   @IsOptional()
   @IsString({ message: 'Description must be a string' })
   description?: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Level or rank of the position (e.g., 1 = staff, 3 = manager)'
   })
   @IsOptional()

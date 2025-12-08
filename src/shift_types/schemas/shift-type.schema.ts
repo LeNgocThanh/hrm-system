@@ -59,7 +59,7 @@ export class ShiftType {
   isCheckTwoTimes?: boolean; // có phải chỉ cần chấm công 2 lần cả ngày
 
   @Prop({ type: Boolean, default: false })
-  isMixSession?: boolean; // có phải chỉ cần chấm công 2 lần cả ngày
+  isMixSession?: boolean; // là ca hỗn hợp có thể làm AM hoặc PM trong ngày
 }
 export type ShiftTypeDocument = ShiftType & Document;
 export const ShiftTypeSchema = SchemaFactory.createForClass(ShiftType);

@@ -16,6 +16,12 @@ import { UserAssignmentsModule } from 'src/user-assignments/user-assignments.mod
 import { UserAssignmentSchema } from 'src/user-assignments/schemas/user-assignment.schema';
 import { OrganizationsModule } from 'src/organizations/organizations.module';
 import { OrganizationsService } from 'src/organizations/organizations.service';
+import { UserShiftSessionService} from 'src/user-shift-session/user-shift-session.service';
+import { UserShiftSessionModule} from 'src/user-shift-session/user-shift-session.module';
+import { ShiftSessionService } from 'src/shift-sessions/shift-sessions.service';
+import { ShiftSessionsModule } from 'src/shift-sessions/shift-sessions.module';
+import { UserShiftSessionSchema, UserShiftSession } from 'src/user-shift-session/schemas/user-shift-session.schema';
+import { ShiftSessionSchema, ShiftSession } from 'src/shift_types/schemas/shift-type.schema';
 
 @Module({
   imports: [
@@ -25,12 +31,16 @@ import { OrganizationsService } from 'src/organizations/organizations.service';
       { name: AttendanceSummary.name, schema: AttendanceSummarySchema },
       {name: Holiday.name, schema: HolidaySchema},
       { name: 'UserAssignment', schema: UserAssignmentSchema },
+      { name: UserShiftSession.name, schema: UserShiftSessionSchema },    
+      { name: ShiftSession.name, schema: ShiftSessionSchema }, 
       
     ]),
     ShiftTypesModule,
     UserPoliciesModule,
     UserAssignmentsModule,
-    OrganizationsModule,
+    OrganizationsModule,    
+    UserShiftSessionModule,
+    ShiftSessionsModule,
   ],
   controllers: [AttendanceController, AttendanceJobController, HolidayController],
   providers: [LogsService, DailyService, SummaryService, AttendanceJobService, HolidayService, UserAssignmentsModule, OrganizationsModule],

@@ -19,7 +19,7 @@ export class AttendanceController {
     private readonly logsService: LogsService,
     private readonly dailyService: DailyService,
     private readonly summaryService: SummaryService,
-  ) {}
+  ) { }
 
   // --- LOGS ---
   @Post('logs')
@@ -30,7 +30,7 @@ export class AttendanceController {
   @Get('logs')
   async getLogs(@Query('from') from?: string, @Query('to') to?: string) {
     if (from && to) {
-      return this.logsService.findByOnlyDateRange(from,to);
+      return this.logsService.findByOnlyDateRange(from, to);
     }
     return this.logsService.findAll();
   }
@@ -62,7 +62,7 @@ export class AttendanceController {
 
   @Post('logs/bulk')
   @UsePipes(new ValidationPipe({ transform: true, whitelist: true }))
-  async createLogsBulk(@Body() body: any) {   
+  async createLogsBulk(@Body() body: any) {
     const items = Array.isArray(body) ? body : body?.items;
 
     if (!Array.isArray(items) || items.length < 1) {
@@ -81,7 +81,7 @@ export class AttendanceController {
   }
 
   // --- DAILY ---
-   @Get('daily')
+  @Get('daily')
   async getDaily(
     @Query('userId') userId?: string,
     @Query('date') date?: string,
@@ -98,19 +98,19 @@ export class AttendanceController {
     }
     // Không có tham số -> rỗng
     return [];
-  }  
+  }
 
   @Get('daily/range-by-org')
-async getRangeByOrg(
-  @Query('orgId') orgId: string,
-  @Query('from') from?: string,
-  @Query('to') to?: string,
-) {
-  if (!orgId) {
-    throw new BadRequestException('orgId là bắt buộc');
+  async getRangeByOrg(
+    @Query('orgId') orgId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    if (!orgId) {
+      throw new BadRequestException('orgId là bắt buộc');
+    }
+    return this.dailyService.findRangeByOrgTree(orgId, from, to);
   }
-  return this.dailyService.findRangeByOrgTree(orgId, from, to);
-}
 
   @Put('times')
   async upsertTimes(@Body() body: any) {
@@ -130,6 +130,15 @@ async getRangeByOrg(
     return this.dailyService.upsertTimesNoSession(body);
   }
 
+  @Post('recompute')
+  recompute(
+    @Body() body: any,
+  ) {
+    const { userIds, from, to } = body || {};
+    const userId = userIds && Array.isArray(userIds) && userIds.length > 0 ? userIds[0] : body.userId;
+    return this.dailyService.recomputeRangeNew({ userId, from, to });
+  }
+
   // --- SUMMARY ---
   @Get()
   async getMonthly(@Query('userId') userId?: string, @Query('monthKey') monthKey?: string) {
@@ -143,23 +152,23 @@ async getRangeByOrg(
 
 @Controller('attendance-job')
 export class AttendanceJobController {
-  constructor(private readonly jobService: AttendanceJobService) {}
+  constructor(private readonly jobService: AttendanceJobService) { }
 
   // Logs → Daily
- @Post('runLogsToDaily')
+  @Post('runLogsToDaily')
   async runLogsToDaily(@Body() body: any) {
     const { userId, from, to } = body || {};
     return this.jobService.runLogsToDaily(userId, from, to);
   }
 
   @Post('runLogsToDailyManual')
-  async runLogsToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
+  async runLogsToDailyManual(@Body() dto: RunLogsToDailySmartDto) {
     const { userId, from, to } = dto || {};
     return this.jobService.runLogsToDailySmart(userId, from, to);
   }
 
   @Post('runLogsOverNightToDailyManual')
-  async runLogsOverNightToDailyManual(@Body() dto: RunLogsToDailySmartDto) {    
+  async runLogsOverNightToDailyManual(@Body() dto: RunLogsToDailySmartDto) {
     const { userId, from, to } = dto || {};
     return this.jobService.runLogsOverNightToDailySmart(userId, from, to);
   }
@@ -185,20 +194,20 @@ export class AttendanceJobController {
 
 @Controller('calendar/holidays')
 export class HolidayController {
-constructor(private readonly svc: HolidayService) {}
+  constructor(private readonly svc: HolidayService) { }
 
 
-@Get()
-async list(@Query() q: QueryHolidaysDto) { return this.svc.list(q); }
+  @Get()
+  async list(@Query() q: QueryHolidaysDto) { return this.svc.list(q); }
 
 
-@Post()
-async upsert(@Body() dto: UpsertHolidayDto, @Req() req: any) {
-const userId = String(req?.user?._id || req?.userId || 'system');
-return this.svc.upsert(dto, userId);
-}
+  @Post()
+  async upsert(@Body() dto: UpsertHolidayDto, @Req() req: any) {
+    const userId = String(req?.user?._id || req?.userId || 'system');
+    return this.svc.upsert(dto, userId);
+  }
 
 
-@Delete(':id')
-async remove(@Param('id') id: string) { return this.svc.remove(id); }
+  @Delete(':id')
+  async remove(@Param('id') id: string) { return this.svc.remove(id); }
 }

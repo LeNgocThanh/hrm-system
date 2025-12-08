@@ -2,11 +2,13 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { UserAssignment, UserAssignmentDocument } from './schemas/user-assignment.schema';
-import { CreateUserAssignmentDto } from './dto/create-user-assignment.dto';
+import { CreateUserAssignmentDto, CreateUserAssignmentByCodeDto } from './dto/create-user-assignment.dto';
 import { UpdateUserAssignmentDto } from './dto/update-user-assignment.dto';
 import { QueryUserAssignmentDto } from './dto/query-user-assignment.dto';
 import { RolesService } from 'src/roles/roles.service';
 import { PermissionsService } from 'src/permissions/permissions.service';
+//import { OrganizationsService } from 'src/organizations/organizations.service';
+//import { PositionsService } from 'src/positions/positions.service';
 
 @Injectable()
 export class UserAssignmentsService {
@@ -15,9 +17,65 @@ export class UserAssignmentsService {
     private userAssignmentModel: Model<UserAssignmentDocument>,
     private readonly rolesService: RolesService,
     private readonly permissionsService: PermissionsService,
+   // private readonly organizationsService: OrganizationsService,
+   // private readonly positionsService: PositionsService,
   ) { }
 
   async create(createUserAssignmentDto: CreateUserAssignmentDto, userId: string, userIdRoles: any[]): Promise<UserAssignment> {
+    const moduleNames = ['All', 'User'];
+    // Hàm tiện ích để kiểm tra quyền
+    const hasPermission = (action: string) => {
+      return userIdRoles.some(scope =>
+        moduleNames.some(moduleName =>
+          scope.groupedPermissions?.[moduleName]?.includes(action)
+        )
+      );
+    };
+
+    const roleIds = createUserAssignmentDto.roleIds
+      ?.map((roleId: any) => roleId.toString()) ?? [];
+    const roles = await this.rolesService.findManyByIds(roleIds);
+    const allPermissionIds = roles.flatMap(role => role.permissionIds.map(pId => pId.toString()));
+    const uniquePermissionIds = [...new Set(allPermissionIds)];
+    const permissions = await this.permissionsService.findManyByIds(uniquePermissionIds);
+    //const permissionCodes = permissions.map(p => p.code);
+    const groupedPermissions = permissions.reduce((acc, permission) => {
+      if (!acc[permission.module]) {
+        acc[permission.module] = [];
+      }
+      acc[permission.module].push(permission.action);
+      return acc;
+    }, {} as Record<string, string[]>);
+    const hasManageInAll = groupedPermissions.All && groupedPermissions.All.includes('manage');
+    const hasManageInUser = groupedPermissions.User && groupedPermissions.User.includes('manage');
+
+    // Kiểm tra điều kiện tổng quát: 'manager' có trong module 'All' HOẶC module 'User'
+    const hasRequiredPermission = hasManageInAll || hasManageInUser;
+    if (!hasRequiredPermission) {
+      const createdUserAssignment = new this.userAssignmentModel(createUserAssignmentDto);
+      return createdUserAssignment.save();
+    } else {
+      if (hasPermission('manage')) {
+        const createdUserAssignment = new this.userAssignmentModel(createUserAssignmentDto);
+        return createdUserAssignment.save();
+      } else {
+        throw new NotFoundException(`User with ID ${userId} does not have permission to create this assignment`);
+      }
+    }
+  }
+
+  async createByCode(createUserAssignmentByCodeDto: CreateUserAssignmentByCodeDto, userId: string, userIdRoles: any[]): Promise<UserAssignment> {
+    let createUserAssignmentDto = { ...createUserAssignmentByCodeDto } as unknown as CreateUserAssignmentDto;
+    // const organization = await this.organizationsService.findByCode(createUserAssignmentByCodeDto.organizationCode);
+    // if (!organization) {
+    //   throw new NotFoundException(`Organization with code ${createUserAssignmentByCodeDto.organizationCode} not found`);
+    // }
+    // createUserAssignmentDto.organizationId = new Types.ObjectId(organization._id);
+    // const position = await this.positionsService.findByCode(createUserAssignmentByCodeDto.positionCode);
+    // if (!position) {
+    //   throw new NotFoundException(`Organization with code ${createUserAssignmentByCodeDto.positionCode} not found`);
+    // }
+    // createUserAssignmentDto.positionId = new Types.ObjectId(position._id);
     const moduleNames = ['All', 'User'];
     // Hàm tiện ích để kiểm tra quyền
     const hasPermission = (action: string) => {

@@ -27,7 +27,7 @@ export class User {
   employeeStatus: string; // Trạng thái nhân viên (khác với account status)
 
   @Prop()
-  details: string;
+  details?: string;
 
   // Audit fields
   @Prop({ type: Types.ObjectId, ref: 'User' })

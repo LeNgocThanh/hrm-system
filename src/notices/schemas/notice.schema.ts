@@ -35,6 +35,9 @@ export class Notice {
   @Prop({ type: String, default: '' })
   content: string
 
+  @Prop({ type: String })
+  orgId?: string
+
   @Prop({ type: [String], default: [] })
   tags: string[]
 

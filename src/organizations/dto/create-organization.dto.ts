@@ -1,4 +1,4 @@
-import { IsNotEmpty, IsOptional, IsString, IsEnum, IsBoolean, IsNumber, IsMongoId } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEnum, IsBoolean, IsNumber, IsMongoId, ValidateIf } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Types } from 'mongoose';
 
@@ -8,14 +8,14 @@ export class CreateOrganizationDto {
   @IsString({ message: 'Name must be a string' })
   name: string;
 
-  @ApiPropertyOptional({ 
+  @ApiPropertyOptional({
     description: 'Type of organization',
     enum: ['group', 'company', 'division', 'department'],
     default: 'department'
   })
   @IsOptional()
-  @IsEnum(['group', 'company', 'division', 'department'], { 
-    message: 'Type must be one of: group, company, division, department' 
+  @IsEnum(['group', 'company', 'division', 'department'], {
+    message: 'Type must be one of: group, company, division, department'
   })
   type?: string;
 
@@ -36,8 +36,9 @@ export class CreateOrganizationDto {
 
   @ApiPropertyOptional({ description: 'Organization code' })
   @IsOptional()
-  @IsString({ message: 'Code must be a string' })
-  code?: string;
+  @ValidateIf(o => o.code !== null)
+  @IsString()
+  code?: string | null;
 
   @ApiPropertyOptional({ description: 'Organization description' })
   @IsOptional()

@@ -38,4 +38,7 @@ export class UpdateDailyDto {
 
   @IsOptional()
   editNote?: string;
+
+  @IsOptional()
+  shiftDetails?: string;
 }

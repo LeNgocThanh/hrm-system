@@ -8,6 +8,9 @@ export class Position {
   @Prop({ required: true, unique: true })
   name: string; // Ví dụ: Trưởng phòng, Nhân viên, Giám đốc
 
+  @Prop({ sparse: true, unique: true })
+  code?: string; // Ví dụ: Trưởng phòng, Nhân viên, Giám đốc
+
   @Prop()
   description?: string;
 
@@ -16,6 +19,7 @@ export class Position {
 
   @Prop({ default: true })
   isActive: boolean;
+  
 }
 
 export const PositionSchema = SchemaFactory.createForClass(Position);

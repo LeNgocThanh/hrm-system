@@ -11,13 +11,58 @@ export class CreateUserAssignmentDto {
   @IsOptional()  
   @ValidateIf(o => o.userCode !== null)  
   @IsString()  
-  userCode?: string | null;
-
-  // Đã xoá departmentId
+  userCode?: string | null;  
 
   @IsOptional()
   @IsMongoId()
   positionId?: Types.ObjectId;
+
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  roleIds?: Types.ObjectId[];
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsDate()
+  timeIn?: Date;
+
+  @IsOptional()
+  @IsDate()
+  timeOut?: Date;
+
+  @IsOptional()
+  @IsString()
+  workType?: string; // Loại hình làm việc: fullTime, halftime, remote
+
+  @IsOptional()
+  @IsString()
+  Details?: string; // Thông tin bổ sung về phân công công việc để dự phòng
+} 
+
+export class CreateUserAssignmentByCodeDto {
+  @IsMongoId()
+  userId: Types.ObjectId;
+
+  @IsOptional()
+  @IsString()
+  organizationCode: string;
+
+  @IsOptional()  
+  @ValidateIf(o => o.userCode !== null)  
+  @IsString()  
+  userCode?: string | null;  
+
+  @IsOptional()
+  @IsString()
+  positionCode: string;
 
   @IsOptional()
   @IsArray()

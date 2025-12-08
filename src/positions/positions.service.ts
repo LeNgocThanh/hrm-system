@@ -29,6 +29,11 @@ export class PositionsService {
     return positions.map(position => position.toObject() as unknown as PositionResponseDto);
   }
 
+  async findByCode(code: string): Promise<PositionResponseDto> {
+    const position = await this.positionModel.findOne({ code, isActive: true }).exec();
+    return position?.toObject() as unknown as PositionResponseDto;
+  }
+
   async findOne(id: string): Promise<PositionResponseDto> {
     const position = await this.positionModel.findById(id).exec();
     return position?.toObject() as unknown as PositionResponseDto;

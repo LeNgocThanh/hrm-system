@@ -28,7 +28,7 @@ export class AttendanceDaily extends Document {
   @Prop({ required: true }) shiftType!: string;
 
   // Tóm tắt
-  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE' | 'HOLIDAY'; // trạng thái chấm công ngày
+  @Prop() status?: 'ABSENT' | 'HALF_AM' | 'HALF_PM' | 'FULL' | 'PRESENT' | 'LEAVE' | 'HOLIDAY' | 'OFF' | 'OT' | 'HALF_DAY' | 'NORMAL'; // trạng thái chấm công ngày
   @Prop() workedMinutes?: number;
   @Prop() lateMinutes?: number;
   @Prop() earlyLeaveMinutes?: number;
@@ -47,6 +47,7 @@ export class AttendanceDaily extends Document {
 
   // Metadata
   @Prop() editNote?: string;
+  @Prop() shiftDetails?: string;
   @Prop() computedAt?: Date;
 
   @Prop() isManualEdit?: boolean;
